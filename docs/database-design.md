@@ -267,7 +267,7 @@ Data cached in Redis uses the following key naming conventions:
 
 ### Write Operations
 
-1. **Kafka Ingestion** → Simulador produces `TransacaoPedagioKafkaDTO` → Kafka consumer persists to PostgreSQL
+1. **Kafka Ingestion** → Toll Simulator produces `TransacaoPedagioKafkaDTO` → Kafka consumer persists to PostgreSQL
 2. **Transaction Correction** → Update PostgreSQL → Invalidate Redis cache → Return confirmation
 
 ### Read Operations (Cache-Aside with OrigemDados Tracking)

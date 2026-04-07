@@ -10,7 +10,7 @@ All diagrams are rendered using [Mermaid](https://mermaid.js.org/) syntax.
 graph TB
     subgraph Client Layer
         FE[React Frontend<br/>Operator Dashboard]
-        SIM[Simulador<br/>Python CLI + GUI<br/>Kafka Producer]
+        SIM[Toll Simulator<br/>Python CLI + GUI<br/>Kafka Producer]
     end
 
     subgraph Gateway Layer
@@ -18,9 +18,9 @@ graph TB
     end
 
     subgraph Application Layer
-        SB1[Rodovia Instance 1<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
-        SB2[Rodovia Instance 2<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
-        SBN[Rodovia Instance N<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
+        SB1[Toll Mgmt Instance 1<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
+        SB2[Toll Mgmt Instance 2<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
+        SBN[Toll Mgmt Instance N<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
     end
 
     subgraph Messaging Layer
@@ -66,7 +66,7 @@ sequenceDiagram
     actor Operator
     participant FE as React Frontend
     participant NGINX as NGINX LB
-    participant SB as Rodovia Service
+    participant SB as Toll Management Service
     participant L1 as L1 Cache (ConcurrentHashMap)
     participant REDIS as Redis (L2 Cache)
     participant PG as PostgreSQL
@@ -93,7 +93,7 @@ sequenceDiagram
     actor Operator
     participant FE as React Frontend
     participant NGINX as NGINX LB
-    participant SB as Rodovia Service
+    participant SB as Toll Management Service
     participant L1 as L1 Cache (ConcurrentHashMap)
     participant REDIS as Redis (L2 Cache)
     participant PG as PostgreSQL
@@ -123,7 +123,7 @@ sequenceDiagram
     actor Operator
     participant FE as React Frontend
     participant NGINX as NGINX LB
-    participant SB as Rodovia Service
+    participant SB as Toll Management Service
     participant REDIS as Redis (L2 Cache)
     participant PG as PostgreSQL
 
@@ -274,15 +274,15 @@ graph LR
     subgraph Docker Host
         subgraph Containers
             NGINX[NGINX :80]
-            SB1[Rodovia :9080]
-            SB2[Rodovia :9080]
-            SB3[Rodovia :9080]
+            SB1[Toll Mgmt :9080]
+            SB2[Toll Mgmt :9080]
+            SB3[Toll Mgmt :9080]
             KAFKA[Kafka :9092]
             ZK[Zookeeper :2181]
             REDIS[Redis :6379]
             PG[PostgreSQL :5432]
             FE[React :3000]
-            SIM[Simulador]
+            SIM[Toll Simulator]
             PROM[Prometheus :9090]
             GRAF[Grafana :3001]
         end

@@ -22,9 +22,9 @@ The Smart Toll Cache System uses a **Jenkins-based CI/CD pipeline** to automate 
 
 ### Stage 2: Build
 
-- **rodovia**: `mvn clean package -DskipTests` (Spring Boot 4.0.3, Java 21)
+- **toll-management-service**: `mvn clean package -DskipTests` (Spring Boot 4.0.3, Java 21)
 - **toll-frontend-react**: `npm ci && npm run build`
-- **simulador**: `pip install -r requirements.txt`
+- **toll-simulator**: `pip install -r requirements.txt`
 
 ### Stage 3: Test
 

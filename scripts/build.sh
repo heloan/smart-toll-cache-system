@@ -4,8 +4,8 @@ set -e
 
 echo "=== Building Smart Toll Cache System ==="
 
-echo "[1/3] Building rodovia service..."
-cd services/rodovia && ./mvnw clean package -DskipTests && cd ../..
+echo "[1/3] Building toll-management-service..."
+cd services/toll-management-service && ./mvnw clean package -DskipTests && cd ../..
 
 echo "[2/3] Building toll-frontend-react..."
 cd services/toll-frontend-react && npm ci && npm run build && cd ../..

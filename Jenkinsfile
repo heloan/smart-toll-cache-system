@@ -9,9 +9,9 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Build Rodovia') {
+        stage('Build Toll Management Service') {
             steps {
-                sh 'cd services/rodovia && ./mvnw clean package -DskipTests'
+                sh 'cd services/toll-management-service && ./mvnw clean package -DskipTests'
             }
         }
         stage('Build Frontend') {
@@ -19,9 +19,9 @@ pipeline {
                 sh 'cd services/toll-frontend-react && npm ci && npm run build'
             }
         }
-        stage('Install Simulador Deps') {
+        stage('Install Toll Simulator Deps') {
             steps {
-                sh 'cd services/simulador && pip install -r requirements.txt'
+                sh 'cd services/toll-simulator && pip install -r requirements.txt'
             }
         }
         stage('Test') {

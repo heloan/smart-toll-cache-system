@@ -9,17 +9,17 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'rodovia-1'
+  - job_name: 'toll-management-service-1'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['rodovia-1:9080']
+      - targets: ['toll-management-service-1:9080']
 
-  - job_name: 'rodovia-2'
+  - job_name: 'toll-management-service-2'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['rodovia-2:9080']
+      - targets: ['toll-management-service-2:9080']
 
-  - job_name: 'rodovia-3'
+  - job_name: 'toll-management-service-3'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['rodovia-3:9080']
+      - targets: ['toll-management-service-3:9080']

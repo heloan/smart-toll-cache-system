@@ -77,7 +77,7 @@ A distributed system with:
             │ ┌────────────┘     │     └────────────┐
             ▼ ▼                  ▼                   ▼
      ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-     │   Rodovia     │  │   Rodovia     │  │   Rodovia     │
+     │ Toll Mgmt     │  │ Toll Mgmt     │  │ Toll Mgmt     │
      │  Instance 1   │  │  Instance 2   │  │  Instance N   │
      │  (L1 Cache)   │  │  (L1 Cache)   │  │  (L1 Cache)   │
      │  Port 9080    │  │  Port 9080    │  │  Port 9080    │
@@ -103,7 +103,7 @@ A distributed system with:
 |--------------------|-----------------------|-----------------------------------------------|
 | Frontend           | React 18              | Toll booth operator interface                 |
 | API Gateway        | NGINX                 | Reverse proxy and load balancer               |
-| Backend            | Spring Boot 4.0.3 (Java 21) | Toll management microservice (rodovia)  |
+| Backend            | Spring Boot 4.0.3 (Java 21) | Toll management microservice              |
 | L1 Cache           | ConcurrentHashMap (In-App) | Local in-memory cache per instance       |
 | L2 Cache           | Redis 7.x             | Distributed shared cache                      |
 | Database           | PostgreSQL 15          | Relational persistence (single source of truth)|
@@ -119,10 +119,10 @@ A distributed system with:
 
 | Service                  | Tech                   | Description                                                |
 |--------------------------|------------------------|------------------------------------------------------------|
-| `toll-api-gateway`       | NGINX                  | Reverse proxy, load balancing across rodovia instances      |
-| `rodovia`                | Spring Boot 4.0.3      | Core toll management — CRUD, caching, Kafka, metrics       |
+| `toll-api-gateway`       | NGINX                  | Reverse proxy, load balancing across backend instances       |
+| `toll-management-service`| Spring Boot 4.0.3      | Core toll management — CRUD, caching, Kafka, metrics       |
 | `toll-frontend-react`    | React 18               | Operator dashboard for real-time transaction correction     |
-| `simulador`              | Python 3.10            | Transaction simulator (CLI + GUI) producing to Kafka       |
+| `toll-simulator`         | Python 3.10            | Transaction simulator (CLI + GUI) producing to Kafka       |
 
 ---
 
@@ -161,7 +161,7 @@ cd smart-toll-cache-system
 ### Run Simulator Locally
 
 ```bash
-cd services/simulador
+cd services/toll-simulator
 pip install -r requirements.txt
 python main.py --duration 60 --rate 10
 # Or launch the GUI:
@@ -174,7 +174,7 @@ python gui.py
 |------------------|------------------------------|
 | Frontend (React) | http://localhost:3000         |
 | API Gateway      | http://localhost:80           |
-| Rodovia API      | http://localhost:9080/api     |
+| Toll Management API| http://localhost:9080/api     |
 | Grafana          | http://localhost:3001         |
 | Prometheus       | http://localhost:9090         |
 | Kafka            | localhost:9092                |
@@ -187,7 +187,7 @@ The project includes multiple testing layers:
 
 - **Unit Tests**: Per-service (JUnit for Java, Jest for React)
 - **Integration Tests**: Python-based (pytest) cross-service tests
-- **End-to-End Tests**: Full transaction flow validation (Kafka → rodovia → DB)
+- **End-to-End Tests**: Full transaction flow validation (Kafka → toll-management-service → DB)
 - **Robot Framework**: Acceptance testing
 - **Selenium**: UI testing (Grafana dashboards, Swagger)
 

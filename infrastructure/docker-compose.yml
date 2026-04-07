@@ -12,16 +12,16 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - rodovia-1
-      - rodovia-2
-      - rodovia-3
+      - toll-management-service-1
+      - toll-management-service-2
+      - toll-management-service-3
     networks:
       - toll-network
 
-  # --- Backend Instances (Spring Boot — Rodovia Service) ---
-  rodovia-1:
+  # --- Backend Instances (Spring Boot — Toll Management Service) ---
+  toll-management-service-1:
     build:
-      context: ../services/rodovia
+      context: ../services/toll-management-service
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=docker
@@ -39,9 +39,9 @@ services:
     networks:
       - toll-network
 
-  rodovia-2:
+  toll-management-service-2:
     build:
-      context: ../services/rodovia
+      context: ../services/toll-management-service
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=docker
@@ -59,9 +59,9 @@ services:
     networks:
       - toll-network
 
-  rodovia-3:
+  toll-management-service-3:
     build:
-      context: ../services/rodovia
+      context: ../services/toll-management-service
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=docker
@@ -92,9 +92,9 @@ services:
       - toll-network
 
   # --- Toll Transaction Simulator (Python) ---
-  simulador:
+  toll-simulator:
     build:
-      context: ../services/simulador
+      context: ../services/toll-simulator
       dockerfile: Dockerfile
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092

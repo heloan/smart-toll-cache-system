@@ -104,11 +104,11 @@ Cache-database consistency is maintained through:
 ### Toll Transaction Simulation Flow
 
 ```
-1. Simulador (Python CLI/GUI) generates toll passage events
+1. Toll Simulator (Python CLI/GUI) generates toll passage events
    ↓
 2. Transactions sent to Apache Kafka (topic: transacao-pedagio)
    ↓
-3. Rodovia service Kafka consumer receives and persists transactions
+3. Toll Management Service Kafka consumer receives and persists transactions
    ↓
 4. Transactions with errors flagged as OCORRENCIA
    ↓

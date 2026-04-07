@@ -41,9 +41,9 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
 
-  rodovia-test:
+  toll-management-service-test:
     build:
-      context: ../services/rodovia
+      context: ../services/toll-management-service
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=test

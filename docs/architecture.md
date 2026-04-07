@@ -8,10 +8,10 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
                     ┌──────────────────────────────┐
                     │        Client Layer           │
                     │                               │
-                    │  ┌────────────┐ ┌──────────┐  │
-                    │  │   React    │ │ Simulador │  │
-                    │  │  Frontend  │ │ (Python)  │  │
-                    │  └─────┬──────┘ └─────┬─────┘  │
+                    │  ┌────────────┐ ┌────────────┐  │
+                    │  │   React    │ │   Toll     │  │
+                    │  │  Frontend  │ │ Simulator  │  │
+                    │  └─────┬──────┘ └─────┬──────┘  │
                     └────────┼──────────────┼────────┘
                              │              │
                              │              ▼
@@ -33,7 +33,7 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
                ┌────────────┘      │      └────────────┐
                ▼                   ▼                    ▼
     ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-    │  Rodovia #1      │ │  Rodovia #2      │ │  Rodovia #N      │
+    │  Toll Mgmt #1    │ │  Toll Mgmt #2    │ │  Toll Mgmt #N    │
     │  (Spring Boot)   │ │  (Spring Boot)   │ │  (Spring Boot)   │
     │  ┌────────────┐  │ │  ┌────────────┐  │ │  ┌────────────┐  │
     │  │ L1 Cache   │  │ │  │ L1 Cache   │  │ │  │ L1 Cache   │  │
@@ -74,7 +74,7 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
   - Static content serving for React frontend
 - **Port**: 80 (HTTP)
 
-### 2. Rodovia Service — Spring Boot 4.0.3 (Java 21)
+### 2. Toll Management Service — Spring Boot 4.0.3 (Java 21)
 
 - **Role**: Core business logic microservice (`com.tcc.rodovia`)
 - **Responsibilities**:
@@ -119,11 +119,11 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
 
 - **Role**: Decoupled transaction ingestion pipeline
 - **Responsibilities**:
-  - Producer: simulador sends `TransacaoPedagioKafkaDTO` to topic `transacao-pedagio`
-  - Consumer: rodovia's `TransacaoKafkaConsumer` persists transactions to PostgreSQL
+  - Producer: toll-simulator sends `TransacaoPedagioKafkaDTO` to topic `transacao-pedagio`
+  - Consumer: toll-management-service's `TransacaoKafkaConsumer` persists transactions to PostgreSQL
   - Guarantees: `acks=all`, ordered delivery, auto-create topics
 
-### 7. Simulador (Python CLI + GUI)
+### 7. Toll Simulator (Python CLI + GUI)
 
 - **Role**: Toll transaction simulation and load testing
 - **Responsibilities**:
@@ -148,7 +148,7 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
 
 ```
 ┌─────────┐      ┌───────────┐      ┌─────────┐      ┌────────────┐
-│  Client  │─────▶│   NGINX   │─────▶│ Rodovia │─────▶│ L1 Cache   │
+│  Client  │─────▶│   NGINX   │─────▶│ Toll Mgmt│─────▶│ L1 Cache   │
 │          │      │           │      │ Service │      │ (HashMap)  │
 └─────────┘      └───────────┘      └────┬────┘      └─────┬──────┘
                                          │                  │
@@ -181,12 +181,12 @@ All services are containerized with Docker and orchestrated via Docker Compose:
 | Container                  | Image              | Port(s)    |
 |----------------------------|--------------------|------------|
 | `nginx`                    | nginx:latest       | 80         |
-| `rodovia-1..N`             | rodovia            | 9080       |
+| `toll-management-service-1..N` | toll-management-service | 9080       |
 | `redis`                    | redis:7-alpine     | 6379       |
 | `postgres`                 | postgres:15-alpine | 5432       |
 | `zookeeper`                | cp-zookeeper:7.5.0 | 2181       |
 | `kafka`                    | cp-kafka:7.5.0     | 9092       |
-| `simulador`                | simulador          | —          |
+| `toll-simulator`           | toll-simulator     | —          |
 | `toll-frontend`            | toll-frontend      | 3000       |
 | `prometheus`               | prom/prometheus    | 9090       |
 | `grafana`                  | grafana/grafana    | 3001       |
