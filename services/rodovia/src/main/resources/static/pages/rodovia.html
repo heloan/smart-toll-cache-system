@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rodovias - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html" class="active">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html">Pistas</a></li>
+            <li><a href="/pages/tarifa.html">Tarifas</a></li>
+            <li><a href="/pages/operador.html">Operadores</a></li>
+            <li><a href="/pages/transacoes.html">Transações</a></li>
+            <li><a href="/pages/correcoes.html">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <div class="form-section">
+            <h2 id="formTitle">Nova Rodovia</h2>
+            <form id="rodoviaForm">
+                <input type="hidden" id="rodoviaId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="concessionariaId">Concessionária *</label>
+                        <select id="concessionariaId" required>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="codigo">Código *</label>
+                        <input type="text" id="codigo" required maxlength="20" placeholder="Ex: BR-101">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nome">Nome</label>
+                        <input type="text" id="nome" maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="uf">UF *</label>
+                        <input type="text" id="uf" required maxlength="2" pattern="[A-Z]{2}" placeholder="Ex: SP">
+                    </div>
+                    <div class="form-group">
+                        <label for="extensaoKm">Extensão (km)</label>
+                        <input type="number" id="extensaoKm" step="0.01" min="0">
+                    </div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="ativa" checked>
+                    <label for="ativa">Ativa</label>
+                </div>
+
+                <div>
+                    <button type="submit" class="btn">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelarEdicao()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-section">
+            <h2>Rodovias Cadastradas</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Código</th>
+                        <th>Nome</th>
+                        <th>Concessionária</th>
+                        <th>UF</th>
+                        <th>Extensão (km)</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="rodoviaTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/rodovia.js"></script>
+</body>
+</html>

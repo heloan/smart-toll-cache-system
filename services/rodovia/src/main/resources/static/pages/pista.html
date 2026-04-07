@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pistas de Pedágio - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html" class="active">Pistas</a></li>
+            <li><a href="/pages/tarifa.html">Tarifas</a></li>
+            <li><a href="/pages/operador.html">Operadores</a></li>
+            <li><a href="/pages/transacoes.html">Transações</a></li>
+            <li><a href="/pages/correcoes.html">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <div class="form-section">
+            <h2 id="formTitle">Nova Pista de Pedágio</h2>
+            <form id="pistaForm">
+                <input type="hidden" id="pistaId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="pracaId">Praça *</label>
+                        <select id="pracaId" required>
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="numeroPista">Número da Pista *</label>
+                        <input type="number" id="numeroPista" required min="1">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tipoPista">Tipo da Pista *</label>
+                        <select id="tipoPista" required>
+                            <option value="">Selecione...</option>
+                            <option value="MANUAL">Manual</option>
+                            <option value="AUTOMATICA">Automática</option>
+                            <option value="LIVRE">Livre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="sentido">Sentido</label>
+                        <input type="text" id="sentido" maxlength="20" placeholder="Ex: Norte, Sul">
+                    </div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="ativa" checked>
+                    <label for="ativa">Ativa</label>
+                </div>
+
+                <div>
+                    <button type="submit" class="btn">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelarEdicao()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-section">
+            <h2>Pistas de Pedágio Cadastradas</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Praça</th>
+                        <th>Número</th>
+                        <th>Tipo</th>
+                        <th>Sentido</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="pistaTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/pista.js"></script>
+</body>
+</html>

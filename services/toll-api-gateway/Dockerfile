@@ -2,7 +2,6 @@
 FROM nginx:latest
 
 # Copy custom configuration
-# COPY nginx.conf /etc/nginx/nginx.conf
-# COPY conf.d/ /etc/nginx/conf.d/
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80

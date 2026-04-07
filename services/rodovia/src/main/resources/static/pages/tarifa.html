@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarifas de Pedágio - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html">Pistas</a></li>
+            <li><a href="/pages/tarifa.html" class="active">Tarifas</a></li>
+            <li><a href="/pages/operador.html">Operadores</a></li>
+            <li><a href="/pages/transacoes.html">Transações</a></li>
+            <li><a href="/pages/correcoes.html">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <div class="form-section">
+            <h2 id="formTitle">Nova Tarifa de Pedágio</h2>
+            <form id="tarifaForm">
+                <input type="hidden" id="tarifaId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tipoVeiculo">Tipo de Veículo *</label>
+                        <select id="tipoVeiculo" required>
+                            <option value="">Selecione...</option>
+                            <option value="MOTO">Moto</option>
+                            <option value="CARRO">Carro</option>
+                            <option value="CAMINHAO">Caminhão</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="valor">Valor (R$) *</label>
+                        <input type="number" id="valor" required step="0.01" min="0.01" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="vigenciaInicio">Vigência Início *</label>
+                        <input type="date" id="vigenciaInicio" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="vigenciaFim">Vigência Fim</label>
+                        <input type="date" id="vigenciaFim">
+                        <small style="color: #666;">Deixe em branco para vigência indeterminada</small>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit" class="btn">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelarEdicao()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tarifas Vigentes -->
+        <div class="table-section">
+            <h2>💰 Tarifas Vigentes</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tipo de Veículo</th>
+                        <th>Valor</th>
+                        <th>Vigência Início</th>
+                        <th>Vigência Fim</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tarifasVigentesTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Todas as Tarifas -->
+        <div class="table-section">
+            <h2>📋 Histórico de Tarifas</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tipo de Veículo</th>
+                        <th>Valor</th>
+                        <th>Vigência Início</th>
+                        <th>Vigência Fim</th>
+                        <th>Status</th>
+                        <th>Criado Em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tarifaTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/tarifa.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operadores - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html">Pistas</a></li>
+            <li><a href="/pages/tarifa.html">Tarifas</a></li>
+            <li><a href="/pages/operador.html" class="active">Operadores</a></li>
+            <li><a href="/pages/transacoes.html">Transações</a></li>
+            <li><a href="/pages/correcoes.html">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <div class="form-section">
+            <h2 id="formTitle">Novo Operador</h2>
+            <form id="operadorForm">
+                <input type="hidden" id="operadorId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="username">Username *</label>
+                        <input type="text" id="username" required minlength="3" maxlength="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Senha *</label>
+                        <input type="password" id="password" required minlength="6" maxlength="100">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="nomeCompleto">Nome Completo *</label>
+                    <input type="text" id="nomeCompleto" required maxlength="100">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" required maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="telefone">Telefone</label>
+                        <input type="tel" id="telefone" maxlength="20" placeholder="(11) 99999-9999">
+                    </div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="ativo" checked>
+                    <label for="ativo">Ativo</label>
+                </div>
+
+                <div>
+                    <button type="submit" class="btn">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelarEdicao()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-section">
+            <h2>Operadores Cadastrados</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Nome Completo</th>
+                        <th>Email</th>
+                        <th>Telefone</th>
+                        <th>Status</th>
+                        <th>Cadastro</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="operadorTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/operador.js"></script>
+</body>
+</html>

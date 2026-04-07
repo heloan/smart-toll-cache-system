@@ -10,7 +10,7 @@ All diagrams are rendered using [Mermaid](https://mermaid.js.org/) syntax.
 graph TB
     subgraph Client Layer
         FE[React Frontend<br/>Operator Dashboard]
-        SIM[Python Simulator<br/>Load Generator]
+        SIM[Simulador<br/>Python CLI + GUI<br/>Kafka Producer]
     end
 
     subgraph Gateway Layer
@@ -18,9 +18,13 @@ graph TB
     end
 
     subgraph Application Layer
-        SB1[Spring Boot Instance 1<br/>L1 Cache - Caffeine]
-        SB2[Spring Boot Instance 2<br/>L1 Cache - Caffeine]
-        SBN[Spring Boot Instance N<br/>L1 Cache - Caffeine]
+        SB1[Rodovia Instance 1<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
+        SB2[Rodovia Instance 2<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
+        SBN[Rodovia Instance N<br/>L1 Cache - ConcurrentHashMap<br/>Port 9080]
+    end
+
+    subgraph Messaging Layer
+        KAFKA[Apache Kafka<br/>Topic: transacao-pedagio<br/>Port 9092]
     end
 
     subgraph Data Layer
@@ -34,7 +38,10 @@ graph TB
     end
 
     FE --> NGINX
-    SIM --> NGINX
+    SIM --> KAFKA
+    KAFKA --> SB1
+    KAFKA --> SB2
+    KAFKA --> SBN
     NGINX --> SB1
     NGINX --> SB2
     NGINX --> SBN
@@ -59,8 +66,8 @@ sequenceDiagram
     actor Operator
     participant FE as React Frontend
     participant NGINX as NGINX LB
-    participant SB as Spring Boot
-    participant L1 as L1 Cache (Caffeine)
+    participant SB as Rodovia Service
+    participant L1 as L1 Cache (ConcurrentHashMap)
     participant REDIS as Redis (L2 Cache)
     participant PG as PostgreSQL
 
@@ -86,8 +93,8 @@ sequenceDiagram
     actor Operator
     participant FE as React Frontend
     participant NGINX as NGINX LB
-    participant SB as Spring Boot
-    participant L1 as L1 Cache (Caffeine)
+    participant SB as Rodovia Service
+    participant L1 as L1 Cache (ConcurrentHashMap)
     participant REDIS as Redis (L2 Cache)
     participant PG as PostgreSQL
 
@@ -116,12 +123,12 @@ sequenceDiagram
     actor Operator
     participant FE as React Frontend
     participant NGINX as NGINX LB
-    participant SB as Spring Boot
+    participant SB as Rodovia Service
     participant REDIS as Redis (L2 Cache)
     participant PG as PostgreSQL
 
     Operator->>FE: Submit correction for transaction #100
-    FE->>NGINX: PUT /api/transacoes/100/corrigir
+    FE->>NGINX: PUT /api/correcoes/transacao/100
     NGINX->>SB: Forward request
     SB->>PG: UPDATE transacao SET corrigida=true, status='CORRIGIDA' WHERE id=100
     PG-->>SB: Updated
@@ -138,45 +145,124 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-    class Praca {
+    class Concessionaria {
+        -Long id
+        -String nomeFantasia
+        -String razaoSocial
+        -String cnpj
+        -String contratoConcessao
+        -LocalDate dataInicioContrato
+        -LocalDate dataFimContrato
+        -Boolean ativo
+        -LocalDateTime criadoEm
+        +getRodovias() List~Rodovia~
+    }
+
+    class Rodovia {
+        -Long id
+        -String codigo
+        -String nome
+        -String uf
+        -BigDecimal extensaoKm
+        -Boolean ativa
+        -LocalDateTime criadoEm
+        +getPracasPedagio() List~PracaPedagio~
+    }
+
+    class PracaPedagio {
         -Long id
         -String nome
-        -String rodovia
         -BigDecimal km
-        -String uf
-        -LocalDateTime createdAt
-        -LocalDateTime updatedAt
-        +getPistas() List~Pista~
+        -String sentido
+        -Boolean ativa
+        -LocalDateTime criadoEm
+        +getPistas() List~PistaPedagio~
+        +getTransacoes() List~TransacaoPedagio~
     }
 
-    class Pista {
+    class PistaPedagio {
         -Long id
-        -Integer numero
-        -String tipo
-        -String status
-        -Long pracaId
-        -LocalDateTime createdAt
-        -LocalDateTime updatedAt
-        +getTransacoes() List~Transacao~
+        -Integer numeroPista
+        -TipoPistaEnum tipoPista
+        -String sentido
+        -Boolean ativa
+        -LocalDateTime criadoEm
+        +getTransacoes() List~TransacaoPedagio~
     }
 
-    class Transacao {
+    class TarifaPedagio {
         -Long id
-        -String tipo
-        -String status
+        -TipoVeiculoEnum tipoVeiculo
         -BigDecimal valor
-        -String placa
-        -String tag
-        -LocalDateTime dataHora
-        -Boolean corrigida
-        -Long pistaId
-        -LocalDateTime createdAt
-        -LocalDateTime updatedAt
-        +corrigir() void
+        -LocalDate vigenciaInicio
+        -LocalDate vigenciaFim
+        -LocalDateTime criadoEm
     }
 
-    Praca "1" --> "*" Pista : contains
-    Pista "1" --> "*" Transacao : processes
+    class TransacaoPedagio {
+        -Long id
+        -LocalDateTime dataHoraPassagem
+        -String placa
+        -String tagId
+        -TipoVeiculoEnum tipoVeiculo
+        -BigDecimal valorOriginal
+        -StatusTransacaoEnum statusTransacao
+        -String hashIntegridade
+        -LocalDateTime criadoEm
+        +getOcorrencias() List~OcorrenciaTransacao~
+        +getCorrecoes() List~CorrecaoTransacao~
+    }
+
+    class OcorrenciaTransacao {
+        -Long id
+        -TipoOcorrenciaEnum tipoOcorrencia
+        -String observacao
+        -Boolean detectadaAutomaticamente
+        -LocalDateTime criadoEm
+    }
+
+    class CorrecaoTransacao {
+        -Long id
+        -String motivo
+        -BigDecimal valorAnterior
+        -BigDecimal valorCorrigido
+        -TipoCorrecaoEnum tipoCorrecao
+        -LocalDateTime criadoEm
+    }
+
+    class Operador {
+        -Long id
+        -String username
+        -String password
+        -String nomeCompleto
+        -String email
+        -String telefone
+        -Boolean ativo
+        -LocalDateTime criadoEm
+        +getCorrecoes() List~CorrecaoTransacao~
+    }
+
+    class RegistroPerformance {
+        -Long id
+        -String endpoint
+        -String metodoHttp
+        -Long tempoProcessamentoMs
+        -Double memoriaUsadaMb
+        -Double usoCpuProcesso
+        -Integer statusHttp
+        -OrigemDadosEnum origemDados
+        -LocalDateTime criadoEm
+    }
+
+    Concessionaria "1" --> "*" Rodovia : manages
+    Rodovia "1" --> "*" PracaPedagio : contains
+    PracaPedagio "1" --> "*" PistaPedagio : has
+    PracaPedagio "1" --> "*" TransacaoPedagio : processes
+    PistaPedagio "1" --> "*" TransacaoPedagio : processes
+    TarifaPedagio "1" --> "*" TransacaoPedagio : applies
+    TransacaoPedagio "1" --> "*" OcorrenciaTransacao : has
+    TransacaoPedagio "1" --> "*" CorrecaoTransacao : has
+    Operador "1" --> "*" CorrecaoTransacao : performs
 ```
 
 ---
@@ -188,26 +274,30 @@ graph LR
     subgraph Docker Host
         subgraph Containers
             NGINX[NGINX :80]
-            SB1[Spring Boot :8080]
-            SB2[Spring Boot :8081]
-            SB3[Spring Boot :8082]
+            SB1[Rodovia :9080]
+            SB2[Rodovia :9080]
+            SB3[Rodovia :9080]
+            KAFKA[Kafka :9092]
+            ZK[Zookeeper :2181]
             REDIS[Redis :6379]
             PG[PostgreSQL :5432]
             FE[React :3000]
+            SIM[Simulador]
             PROM[Prometheus :9090]
             GRAF[Grafana :3001]
         end
     end
 
-    NGINX --> SB1
-    NGINX --> SB2
-    NGINX --> SB3
     SB1 --> REDIS
     SB2 --> REDIS
     SB3 --> REDIS
     SB1 --> PG
     SB2 --> PG
     SB3 --> PG
+    KAFKA --> SB1
+    KAFKA --> SB2
+    KAFKA --> SB3
+    SIM --> KAFKA
     PROM --> SB1
     PROM --> SB2
     PROM --> SB3
@@ -221,13 +311,13 @@ graph LR
 
 ```mermaid
 flowchart TD
-    A[Request Received] --> B{Check L1 Cache<br/>Caffeine}
+    A[Request Received] --> B{Check L1 Cache<br/>ConcurrentHashMap}
     B -->|HIT| C[Return Cached Data]
     B -->|MISS| D{Check L2 Cache<br/>Redis}
     D -->|HIT| E[Populate L1 Cache]
     E --> C
     D -->|MISS| F[Query PostgreSQL]
     F --> G[Populate L2 Cache<br/>Redis]
-    G --> H[Populate L1 Cache<br/>Caffeine]
+    G --> H[Populate L1 Cache<br/>ConcurrentHashMap]
     H --> C
 ```

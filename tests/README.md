@@ -12,10 +12,10 @@ The Smart Toll Cache System employs a multi-layered testing strategy to ensure c
 
 Per-service unit tests verifying individual components in isolation.
 
-| Service                       | Framework | Location                                                |
-|-------------------------------|-----------|--------------------------------------------------------|
-| toll-management-service-java  | JUnit 5   | `services/toll-management-service-java/src/test/java/` |
-| toll-frontend-react           | Jest      | `services/toll-frontend-react/src/`                    |
+| Service                       | Framework | Location                                        |
+|-------------------------------|-----------|------------------------------------------------|
+| rodovia                       | JUnit 5   | `services/rodovia/src/test/java/`              |
+| toll-frontend-react           | Jest      | `services/toll-frontend-react/src/`            |
 
 ### 2. Integration Tests
 
@@ -25,8 +25,8 @@ Cross-service integration tests using Python (pytest) against containerized serv
 - **Infrastructure**: `tests/docker-compose.test.yml`
 - **Categories**:
   - `gateway/` — NGINX load balancing and request forwarding
-  - `toll-management-service/` — Transaction CRUD and cache behavior
-  - `end-to-end/` — Full transaction correction flow
+  - `rodovia/` — Transaction CRUD, cache behavior, Kafka ingestion
+  - `end-to-end/` — Full transaction correction flow (Kafka → rodovia → DB)
   - `cache-service/` — Redis cache consistency and invalidation
 
 ### 3. End-to-End Tests
@@ -44,7 +44,7 @@ Full workflow validation covering the complete transaction correction pipeline f
 Acceptance and keyword-driven tests for business-level scenarios.
 
 - **Location**: `tests/robot/`
-- **Categories**: gateway, toll-management-service, end-to-end
+- **Categories**: gateway, rodovia, end-to-end
 
 ### 5. Selenium Tests
 

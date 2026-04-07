@@ -3,5 +3,5 @@
 set -e
 
 echo "=== Running Integration Tests ==="
-# cd tests/integration && python -m pytest -v
-echo "Integration tests placeholder — implement during development"
+cd tests/integration && python -m pytest -v
+echo "=== Integration Tests Complete ==="

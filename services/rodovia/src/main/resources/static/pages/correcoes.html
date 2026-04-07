@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correções de Transação - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .filters-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        .filters-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .valor-badge {
+            padding: 0.5rem;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .valor-aumentou {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .valor-diminuiu {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html">Pistas</a></li>
+            <li><a href="/pages/tarifa.html">Tarifas</a></li>
+            <li><a href="/pages/operador.html">Operadores</a></li>
+            <li><a href="/pages/transacoes.html">Transações</a></li>
+            <li><a href="/pages/correcoes.html" class="active">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <!-- Estatísticas -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCorrecoes">0</div>
+                <div class="stat-label">Total de Correções</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stat-number" id="correcoesTarifaErrada">0</div>
+                <div class="stat-label">Tarifa Errada</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="stat-number" id="correcoesStatusErrado">0</div>
+                <div class="stat-label">Status Errado</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                <div class="stat-number" id="correcoesFraude">0</div>
+                <div class="stat-label">Fraude Detectada</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-section">
+            <h3>🔍 Filtros</h3>
+            <div class="filters-row">
+                <div class="form-group">
+                    <label for="operadorFiltro">Operador</label>
+                    <select id="operadorFiltro">
+                        <option value="">Todos os operadores</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="tipoCorrecaoFiltro">Tipo de Correção</label>
+                    <select id="tipoCorrecaoFiltro">
+                        <option value="">Todos os tipos</option>
+                        <option value="TARIFA_ERRADA">Tarifa Errada</option>
+                        <option value="STATUS_ERRADO">Status Errado</option>
+                        <option value="FRAUDE_DETECTADA">Fraude Detectada</option>
+                        <option value="AJUSTE_MANUAL">Ajuste Manual</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" onclick="aplicarFiltros()">Aplicar Filtros</button>
+                <button class="btn btn-secondary" onclick="limparFiltros()">Limpar</button>
+            </div>
+        </div>
+
+        <!-- Tabela de Correções -->
+        <div class="table-section">
+            <h2>🔧 Histórico de Correções</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Transação ID</th>
+                        <th>Data/Hora</th>
+                        <th>Operador</th>
+                        <th>Tipo de Correção</th>
+                        <th>Valor Anterior</th>
+                        <th>Valor Corrigido</th>
+                        <th>Diferença</th>
+                        <th>Motivo</th>
+                    </tr>
+                </thead>
+                <tbody id="correcoesTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Correções por Operador -->
+        <div class="table-section" id="correcoesPorOperadorSection" style="display: none;">
+            <h2>👤 Correções do Operador: <span id="nomeOperadorSelecionado"></span></h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Transação ID</th>
+                        <th>Data/Hora</th>
+                        <th>Tipo de Correção</th>
+                        <th>Valor Anterior</th>
+                        <th>Valor Corrigido</th>
+                        <th>Diferença</th>
+                        <th>Motivo</th>
+                    </tr>
+                </thead>
+                <tbody id="correcoesPorOperadorTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/correcoes.js"></script>
+</body>
+</html>

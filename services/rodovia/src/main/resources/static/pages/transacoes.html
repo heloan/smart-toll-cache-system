@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transações de Pedágio - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .filters-section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        .filters-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            overflow: auto;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 2rem;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover { color: #000; }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .detail-item {
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 0.25rem;
+        }
+        .ocorrencias-list {
+            margin-top: 1rem;
+        }
+        .ocorrencia-card {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 5px;
+        }
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html">Pistas</a></li>
+            <li><a href="/pages/tarifa.html">Tarifas</a></li>
+            <li><a href="/pages/operador.html">Operadores</a></li>
+            <li><a href="/pages/transacoes.html" class="active">Transações</a></li>
+            <li><a href="/pages/correcoes.html">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <!-- Estatísticas -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-number" id="totalTransacoes">0</div>
+                <div class="stat-label">Total de Transações</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stat-number" id="transacoesComOcorrencias">0</div>
+                <div class="stat-label">Com Ocorrências</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="stat-number" id="transacoesOK">0</div>
+                <div class="stat-label">Status OK</div>
+            </div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <div class="stat-number" id="transacoesCorrigidas">0</div>
+                <div class="stat-label">Corrigidas</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-section">
+            <h3>🔍 Filtros e Buscas</h3>
+            <div class="filters-row">
+                <div class="form-group">
+                    <label for="limiteTransacoes">Limite de Registros</label>
+                    <input type="number" id="limiteTransacoes" value="500" min="1" max="5000">
+                </div>
+                <div class="form-group">
+                    <label for="statusFiltro">Status</label>
+                    <select id="statusFiltro">
+                        <option value="">Todos</option>
+                        <option value="OK">OK</option>
+                        <option value="OCORRENCIA">Com Ocorrência</option>
+                        <option value="CORRIGIDA">Corrigida</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="buscaId">Buscar por ID</label>
+                    <input type="number" id="buscaId" placeholder="Digite o ID">
+                </div>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" onclick="carregarTransacoes()">Buscar Transações</button>
+                <button class="btn btn-secondary" onclick="buscarPorId()">Buscar por ID</button>
+                <button class="btn btn-secondary" onclick="limparFiltros()">Limpar Filtros</button>
+            </div>
+        </div>
+
+        <!-- Transações Pendentes de Correção -->
+        <div class="table-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2>⚠️ Transações com Ocorrências Pendentes</h2>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <div>
+                        <label for="limitePendentes" style="margin-right: 0.5rem;">Limite:</label>
+                        <input type="number" id="limitePendentes" value="50" min="1" max="500" style="width: 80px;">
+                    </div>
+                    <div>
+                        <label for="horasPendentes" style="margin-right: 0.5rem;">Últimas (h):</label>
+                        <input type="number" id="horasPendentes" value="48" min="1" max="720" style="width: 80px;">
+                    </div>
+                    <div>
+                        <label for="origemDadosPendentes" style="margin-right: 0.5rem;">Origem:</label>
+                        <select id="origemDadosPendentes" style="width: 150px;">
+                            <option value="">Banco de Dados</option>
+                            <option value="BANCO_DADOS">Banco de Dados</option>
+                            <option value="CACHE_LOCAL">Cache Local</option>
+                            <option value="CACHE_REDIS">Cache Redis</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-small" onclick="carregarPendentes()">Atualizar</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data/Hora</th>
+                        <th>Praça</th>
+                        <th>Pista</th>
+                        <th>Placa</th>
+                        <th>Tipo</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Ocorrências</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="pendentesTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Todas as Transações -->
+        <div class="table-section">
+            <h2>📋 Todas as Transações</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Data/Hora</th>
+                        <th>Praça</th>
+                        <th>Pista</th>
+                        <th>Placa</th>
+                        <th>Tag ID</th>
+                        <th>Tipo Veículo</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Ocorrências</th>
+                        <th>Correções</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="transacoesTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal de Detalhes -->
+    <div id="detalhesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes da Transação #<span id="modalTransacaoId"></span></h2>
+                <span class="close" onclick="fecharModal()">&times;</span>
+            </div>
+            
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <div class="detail-label">Data/Hora Passagem</div>
+                    <div id="detailDataHora"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Status</div>
+                    <div id="detailStatus"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Praça de Pedágio</div>
+                    <div id="detailPraca"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Pista</div>
+                    <div id="detailPista"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Placa</div>
+                    <div id="detailPlaca"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Tag ID</div>
+                    <div id="detailTagId"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Tipo de Veículo</div>
+                    <div id="detailTipoVeiculo"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Valor Original</div>
+                    <div id="detailValor"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Hash de Integridade</div>
+                    <div id="detailHash" style="word-break: break-all; font-size: 0.85rem;"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Criado Em</div>
+                    <div id="detailCriadoEm"></div>
+                </div>
+            </div>
+
+            <div class="ocorrencias-list" id="ocorrenciasList"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/transacoes.js"></script>
+</body>
+</html>

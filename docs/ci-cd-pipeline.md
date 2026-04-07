@@ -22,9 +22,9 @@ The Smart Toll Cache System uses a **Jenkins-based CI/CD pipeline** to automate 
 
 ### Stage 2: Build
 
-- **toll-management-service-java**: `mvn clean package -DskipTests`
+- **rodovia**: `mvn clean package -DskipTests` (Spring Boot 4.0.3, Java 21)
 - **toll-frontend-react**: `npm ci && npm run build`
-- **toll-simulator-python**: `pip install -r requirements.txt`
+- **simulador**: `pip install -r requirements.txt`
 
 ### Stage 3: Test
 
@@ -70,7 +70,7 @@ Defined in `jenkins/quality-gates.yml`:
 ### Agent
 
 - Defined in `jenkins/Dockerfile.agent`
-- Includes Java 17, Node.js, Python 3.10, Docker CLI
+- Includes Java 21, Node.js, Python 3.10, Docker CLI
 - Python dependencies in `jenkins/agent-requirements.txt`
 
 ### Shared Pipeline Utilities

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concessionárias - Sistema de Gestão</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🛣️ Sistema de Gestão Rodoviária</h1>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/index.html">Início</a></li>
+            <li><a href="/pages/concessionaria.html" class="active">Concessionárias</a></li>
+            <li><a href="/pages/rodovia.html">Rodovias</a></li>
+            <li><a href="/pages/praca.html">Praças</a></li>
+            <li><a href="/pages/pista.html">Pistas</a></li>
+            <li><a href="/pages/tarifa.html">Tarifas</a></li>
+            <li><a href="/pages/operador.html">Operadores</a></li>
+            <li><a href="/pages/transacoes.html">Transações</a></li>
+            <li><a href="/pages/correcoes.html">Correções</a></li>
+            <li><a href="/pages/performance.html">Performance</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        <div id="loading" class="loading"><div class="spinner"></div></div>
+
+        <!-- Formulário -->
+        <div class="form-section">
+            <h2 id="formTitle">Nova Concessionária</h2>
+            <form id="concessionariaForm">
+                <input type="hidden" id="concessionariaId">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nomeFantasia">Nome Fantasia *</label>
+                        <input type="text" id="nomeFantasia" required maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="cnpj">CNPJ *</label>
+                        <input type="text" id="cnpj" required maxlength="14" placeholder="Apenas números">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="razaoSocial">Razão Social *</label>
+                    <input type="text" id="razaoSocial" required maxlength="160">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="contratoConcessao">Contrato de Concessão</label>
+                        <input type="text" id="contratoConcessao" maxlength="60">
+                    </div>
+                    <div class="form-group">
+                        <label for="dataInicioContrato">Data Início Contrato *</label>
+                        <input type="date" id="dataInicioContrato" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dataFimContrato">Data Fim Contrato</label>
+                        <input type="date" id="dataFimContrato">
+                    </div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="ativo" checked>
+                    <label for="ativo">Ativo</label>
+                </div>
+
+                <div>
+                    <button type="submit" class="btn">Salvar</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelarEdicao()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Lista -->
+        <div class="table-section">
+            <h2>Concessionárias Cadastradas</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome Fantasia</th>
+                        <th>CNPJ</th>
+                        <th>Razão Social</th>
+                        <th>Contrato</th>
+                        <th>Início</th>
+                        <th>Fim</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="concessionariaTableBody">
+                    <!-- Será preenchido via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Sistema de Gestão Rodoviária - TCC</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/concessionaria.js"></script>
+</body>
+</html>

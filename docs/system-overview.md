@@ -41,7 +41,7 @@ The proposed solution implements a **distributed toll management system** with t
 
 | Layer | Technology | Scope | Latency |
 |-------|-----------|-------|---------|
-| L1 — In-App Cache | Caffeine / HashMap | Per-instance, local memory | Ultra-low (~μs) |
+| L1 — In-App Cache | ConcurrentHashMap | Per-instance, local memory | Ultra-low (~μs) |
 | L2 — Distributed Cache | Redis | Shared across all instances | Low (~ms) |
 | L3 — Persistent Storage | PostgreSQL | Single source of truth | Higher (~10ms+) |
 
@@ -83,7 +83,7 @@ Cache-database consistency is maintained through:
    ↓
 5. NGINX forwards to available Spring Boot instance
    ↓
-6. Backend checks L1 In-App Cache (Caffeine)
+6. Backend checks L1 In-App Cache (ConcurrentHashMap)
    ├── HIT → Return cached data immediately
    └── MISS → Check L2 Redis Cache
                ├── HIT → Return data, populate L1
@@ -104,15 +104,17 @@ Cache-database consistency is maintained through:
 ### Toll Transaction Simulation Flow
 
 ```
-1. Python simulator generates concurrent toll passage events
+1. Simulador (Python CLI/GUI) generates toll passage events
    ↓
-2. Transactions sent to API gateway (NGINX)
+2. Transactions sent to Apache Kafka (topic: transacao-pedagio)
    ↓
-3. Backend processes and persists transactions
+3. Rodovia service Kafka consumer receives and persists transactions
    ↓
-4. Metrics collected (latency, throughput, cache hit rate)
+4. Transactions with errors flagged as OCORRENCIA
    ↓
-5. Results available in Grafana dashboard
+5. Metrics collected (latency, throughput, cache hit rate)
+   ↓
+6. Results available in Grafana dashboard
 ```
 
 ---

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Simulador de Pedágio
+Comment=Simulador de Transações de Pedágio com Interface Gráfica
+Exec=/home/heloan/workplace/tcc/simulador/run_gui.sh
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;Utility;

@@ -9,12 +9,17 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
                     │        Client Layer           │
                     │                               │
                     │  ┌────────────┐ ┌──────────┐  │
-                    │  │   React    │ │  Python   │  │
-                    │  │  Frontend  │ │ Simulator │  │
+                    │  │   React    │ │ Simulador │  │
+                    │  │  Frontend  │ │ (Python)  │  │
                     │  └─────┬──────┘ └─────┬─────┘  │
                     └────────┼──────────────┼────────┘
                              │              │
-                             ▼              ▼
+                             │              ▼
+                             │     ┌──────────────────┐
+                             │     │   Apache Kafka    │
+                             │     │ (Async Messaging) │
+                             │     └────────┬─────────┘
+                             ▼               │
                     ┌──────────────────────────────┐
                     │       Gateway Layer           │
                     │                               │
@@ -28,12 +33,14 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
                ┌────────────┘      │      └────────────┐
                ▼                   ▼                    ▼
     ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-    │  Spring Boot #1  │ │  Spring Boot #2  │ │  Spring Boot #N  │
-    │                  │ │                  │ │                  │
+    │  Rodovia #1      │ │  Rodovia #2      │ │  Rodovia #N      │
+    │  (Spring Boot)   │ │  (Spring Boot)   │ │  (Spring Boot)   │
     │  ┌────────────┐  │ │  ┌────────────┐  │ │  ┌────────────┐  │
     │  │ L1 Cache   │  │ │  │ L1 Cache   │  │ │  │ L1 Cache   │  │
-    │  │ (Caffeine) │  │ │  │ (Caffeine) │  │ │  │ (Caffeine) │  │
+    │  │ (HashMap)  │  │ │  │ (HashMap)  │  │ │  │ (HashMap)  │  │
     │  └────────────┘  │ │  └────────────┘  │ │  └────────────┘  │
+    │  Port 9080       │ │  Port 9080       │ │  Port 9080       │
+    │  Kafka Consumer  │ │  Kafka Consumer  │ │  Kafka Consumer  │
     └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
              │                    │                     │
              └────────────┬───────┘─────────────────────┘
@@ -44,9 +51,12 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
     │      Redis       │ │   PostgreSQL     │
     │   (L2 Cache)     │ │    (SSOT)        │
     │                  │ │                  │
-    │  - Key-Value     │ │  - Praca         │
-    │  - TTL: 10min    │ │  - Pista         │
-    │  - LRU eviction  │ │  - Transacao     │
+    │  - Key-Value     │ │  - Concessionaria│
+    │  - TTL: 60min    │ │  - Rodovia       │
+    │  - LRU eviction  │ │  - PracaPedagio  │
+    │                  │ │  - PistaPedagio  │
+    │                  │ │  - TransacaoPed. │
+    │                  │ │  - + 5 more      │
     └──────────────────┘ └──────────────────┘
 ```
 
@@ -64,17 +74,19 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
   - Static content serving for React frontend
 - **Port**: 80 (HTTP)
 
-### 2. Toll Management Service — Spring Boot (Java 17)
+### 2. Rodovia Service — Spring Boot 4.0.3 (Java 21)
 
-- **Role**: Core business logic microservice
+- **Role**: Core business logic microservice (`com.tcc.rodovia`)
 - **Responsibilities**:
-  - Toll plaza, lane, and transaction CRUD operations
-  - Real-time transaction correction workflow
-  - Multi-layer cache management (L1 Caffeine + L2 Redis)
-  - Performance metrics collection via interceptors
-  - RESTful API exposure
-- **Cache Strategy**: Cache-Aside with TTL-based expiration
+  - Full CRUD for Rodovia, Concessionaria, PracaPedagio, PistaPedagio, TarifaPedagio, Operador
+  - Transaction ingestion via Kafka consumer (topic: `transacao-pedagio`)
+  - Real-time transaction correction workflow (OcorrenciaTransacao, CorrecaoTransacao)
+  - Multi-layer cache management (L1 ConcurrentHashMap + L2 Redis)
+  - Performance metrics collection via interceptors (RegistroPerformance)
+  - RESTful API exposure on port **9080**
+- **Cache Strategy**: Cache-Aside with TTL-based expiration (L1: 30min, L2: 60min)
 - **Scaling**: Horizontal — multiple instances behind NGINX
+- **Security**: Spring Security configured via SecurityConfig
 
 ### 3. React Frontend
 
@@ -98,19 +110,29 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
 
 - **Role**: Single Source of Truth (SSOT)
 - **Responsibilities**:
-  - Persistent storage for all toll management data
+  - Persistent storage for all toll management data (10 tables)
   - Relational integrity (foreign keys, constraints)
   - Indexed queries for transaction lookups
-  - Entities: `Praca` (Plaza), `Pista` (Lane), `Transacao` (Transaction)
+  - Entities: `concessionaria`, `rodovia`, `praca_pedagio`, `pista_pedagio`, `tarifa_pedagio`, `transacao_pedagio`, `ocorrencia_transacao`, `correcao_transacao`, `operador`, `registro_performance`
 
-### 6. Python Simulators
+### 6. Apache Kafka — Async Messaging
 
-- **Role**: Load testing and scenario simulation
+- **Role**: Decoupled transaction ingestion pipeline
 - **Responsibilities**:
-  - Simulate toll booth transaction flow at scale
-  - Simulate transaction correction operations under concurrency
-  - Generate up to 500 concurrent users for stress testing
-  - Produce metrics for comparative analysis
+  - Producer: simulador sends `TransacaoPedagioKafkaDTO` to topic `transacao-pedagio`
+  - Consumer: rodovia's `TransacaoKafkaConsumer` persists transactions to PostgreSQL
+  - Guarantees: `acks=all`, ordered delivery, auto-create topics
+
+### 7. Simulador (Python CLI + GUI)
+
+- **Role**: Toll transaction simulation and load testing
+- **Responsibilities**:
+  - Generate realistic toll transactions via `TransacaoGenerator` (uses Faker)
+  - Produce transactions to Kafka with configurable rate (`--rate`) and error rate (`--error-rate`)
+  - Intentional error injection (invalid plates, wrong values, duplicate tags, time inconsistencies)
+  - CLI mode (`main.py`) and GUI mode (`gui.py` — tkinter)
+  - Stress test mode (`--stress`) for high-throughput scenarios
+  - Statistics tracking and reporting
 
 ### 7. Prometheus + Grafana — Observability Stack
 
@@ -126,8 +148,8 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
 
 ```
 ┌─────────┐      ┌───────────┐      ┌─────────┐      ┌────────────┐
-│  Client  │─────▶│   NGINX   │─────▶│ Spring  │─────▶│ L1 Cache   │
-│          │      │           │      │  Boot   │      │ (Caffeine) │
+│  Client  │─────▶│   NGINX   │─────▶│ Rodovia │─────▶│ L1 Cache   │
+│          │      │           │      │ Service │      │ (HashMap)  │
 └─────────┘      └───────────┘      └────┬────┘      └─────┬──────┘
                                          │                  │
                                          │            HIT? ─┤
@@ -159,9 +181,12 @@ All services are containerized with Docker and orchestrated via Docker Compose:
 | Container                  | Image              | Port(s)    |
 |----------------------------|--------------------|------------|
 | `nginx`                    | nginx:latest       | 80         |
-| `toll-service-1..N`        | toll-management    | 8080       |
+| `rodovia-1..N`             | rodovia            | 9080       |
 | `redis`                    | redis:7-alpine     | 6379       |
-| `postgres`                 | postgres:14-alpine | 5432       |
+| `postgres`                 | postgres:15-alpine | 5432       |
+| `zookeeper`                | cp-zookeeper:7.5.0 | 2181       |
+| `kafka`                    | cp-kafka:7.5.0     | 9092       |
+| `simulador`                | simulador          | —          |
 | `toll-frontend`            | toll-frontend      | 3000       |
 | `prometheus`               | prom/prometheus    | 9090       |
 | `grafana`                  | grafana/grafana    | 3001       |

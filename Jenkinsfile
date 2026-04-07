@@ -1,5 +1,4 @@
 // Jenkinsfile — CI/CD pipeline definition for Smart Toll Cache System
-// This is a placeholder. Configure stages for build, test, and deploy.
 
 pipeline {
     agent any
@@ -7,22 +6,37 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // checkout scm
+                checkout scm
             }
         }
-        stage('Build') {
+        stage('Build Rodovia') {
             steps {
-                // sh './scripts/build.sh'
+                sh 'cd services/rodovia && ./mvnw clean package -DskipTests'
+            }
+        }
+        stage('Build Frontend') {
+            steps {
+                sh 'cd services/toll-frontend-react && npm ci && npm run build'
+            }
+        }
+        stage('Install Simulador Deps') {
+            steps {
+                sh 'cd services/simulador && pip install -r requirements.txt'
             }
         }
         stage('Test') {
             steps {
-                // sh './tests/scripts/run-all-tests.sh'
+                sh './tests/scripts/run-all-tests.sh'
+            }
+        }
+        stage('Docker Build') {
+            steps {
+                sh 'docker-compose -f infrastructure/docker-compose.yml build'
             }
         }
         stage('Deploy') {
             steps {
-                // sh './scripts/start.sh'
+                sh './scripts/start.sh'
             }
         }
     }

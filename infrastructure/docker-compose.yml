@@ -12,55 +12,70 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - toll-service-1
-      - toll-service-2
-      - toll-service-3
+      - rodovia-1
+      - rodovia-2
+      - rodovia-3
     networks:
       - toll-network
 
-  # --- Backend Instances (Spring Boot) ---
-  toll-service-1:
+  # --- Backend Instances (Spring Boot — Rodovia Service) ---
+  rodovia-1:
     build:
-      context: ../services/toll-management-service-java
+      context: ../services/rodovia
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/tolldb
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rodovia
+      - SPRING_DATASOURCE_USERNAME=rodovia_user
+      - SPRING_DATASOURCE_PASSWORD=rodovia_pass
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SERVER_PORT=9080
     depends_on:
       - postgres
       - redis
+      - kafka
     networks:
       - toll-network
 
-  toll-service-2:
+  rodovia-2:
     build:
-      context: ../services/toll-management-service-java
+      context: ../services/rodovia
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/tolldb
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rodovia
+      - SPRING_DATASOURCE_USERNAME=rodovia_user
+      - SPRING_DATASOURCE_PASSWORD=rodovia_pass
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SERVER_PORT=9080
     depends_on:
       - postgres
       - redis
+      - kafka
     networks:
       - toll-network
 
-  toll-service-3:
+  rodovia-3:
     build:
-      context: ../services/toll-management-service-java
+      context: ../services/rodovia
       dockerfile: Dockerfile
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/tolldb
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rodovia
+      - SPRING_DATASOURCE_USERNAME=rodovia_user
+      - SPRING_DATASOURCE_PASSWORD=rodovia_pass
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SERVER_PORT=9080
     depends_on:
       - postgres
       - redis
+      - kafka
     networks:
       - toll-network
 
@@ -76,11 +91,25 @@ services:
     networks:
       - toll-network
 
+  # --- Toll Transaction Simulator (Python) ---
+  simulador:
+    build:
+      context: ../services/simulador
+      dockerfile: Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=transacao-pedagio
+    depends_on:
+      - kafka
+    networks:
+      - toll-network
+
   # --- Distributed Cache ---
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
     networks:
@@ -88,16 +117,44 @@ services:
 
   # --- Relational Database ---
   postgres:
-    image: postgres:14-alpine
+    image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=tolldb
-      - POSTGRES_USER=tolluser
-      - POSTGRES_PASSWORD=tollpass
+      - POSTGRES_DB=rodovia
+      - POSTGRES_USER=rodovia_user
+      - POSTGRES_PASSWORD=rodovia_pass
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - toll-network
+
+  # --- Apache Kafka Messaging ---
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - toll-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     networks:
       - toll-network
 

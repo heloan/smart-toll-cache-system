@@ -1,15 +1,16 @@
 # Smart Toll Cache System
 
-![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen?logo=springboot)
+![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.3-brightgreen?logo=springboot)
 ![Redis](https://img.shields.io/badge/Redis-7.x-red?logo=redis)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-blue?logo=postgresql)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue?logo=postgresql)
+![Kafka](https://img.shields.io/badge/Apache%20Kafka-7.5-black?logo=apachekafka)
 ![NGINX](https://img.shields.io/badge/NGINX-latest-green?logo=nginx)
 ![React](https://img.shields.io/badge/React-18-blue?logo=react)
 ![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-> Distributed microservices architecture with in-memory caching (Redis), load balancing (NGINX), and performance benchmarking for high-demand toll management systems.
+> Distributed microservices architecture with in-memory caching (Redis), load balancing (NGINX), async messaging (Kafka), and performance benchmarking for high-demand toll management systems.
 
 ---
 
@@ -30,7 +31,7 @@
 
 This project implements a **distributed microservices-based architecture** designed to optimize the performance and scalability of a real-time toll transaction management system. The system handles toll booth transaction corrections in real-time, where operators must quickly resolve issues such as missing tags, blocked tags, or closed lanes — minimizing queue formation, user stress, and traffic safety risks.
 
-The architecture leverages **multi-layer in-memory caching** (In-App L1 + Redis L2), **load balancing** (NGINX), and **synchronization between cache and relational database** (PostgreSQL) to achieve low latency, high availability, and data consistency under high-concurrency scenarios.
+The architecture leverages **multi-layer in-memory caching** (In-App L1 + Redis L2), **load balancing** (NGINX), **asynchronous messaging** (Apache Kafka), and **synchronization between cache and relational database** (PostgreSQL) to achieve low latency, high availability, and data consistency under high-concurrency scenarios.
 
 ### Problem Statement
 
@@ -44,10 +45,11 @@ Traditional monolithic architectures cannot handle the high volume of concurrent
 ### Solution
 
 A distributed system with:
-- **Cache-Aside strategy** with two-layer caching (L1 In-App + L2 Redis)
+- **Cache-Aside strategy** with two-layer caching (L1 In-App ConcurrentHashMap + L2 Redis)
 - **NGINX load balancing** across multiple Spring Boot backend instances
+- **Apache Kafka** for asynchronous transaction ingestion from the simulator
 - **PostgreSQL** as the single source of truth
-- **Python-based load simulators** for realistic benchmarking
+- **Python-based simulator** (CLI + GUI) generating transactions with configurable error rates
 - **Prometheus + Grafana** for observability and performance monitoring
 
 ---
@@ -60,19 +62,25 @@ A distributed system with:
                         │  (Operator UI)   │
                         └────────┬─────────┘
                                  │
-                                 ▼
-                        ┌─────────────────┐
-                        │      NGINX       │
-                        │  Load Balancer   │
-                        │    (Port 80)     │
-                        └──┬─────┬─────┬──┘
-                           │     │     │
-              ┌────────────┘     │     └────────────┐
-              ▼                  ▼                   ▼
+     ┌──────────────┐            │
+     │  Simulador    │            │
+     │  (Python)     │            │
+     └──────┬───────┘            │
+            │                    │
+            ▼                    ▼
+     ┌──────────────┐  ┌─────────────────┐
+     │    Kafka      │  │      NGINX       │
+     │  (Messaging)  │  │  Load Balancer   │
+     └──────┬───────┘  │    (Port 80)     │
+            │           └──┬─────┬─────┬──┘
+            │              │     │     │
+            │ ┌────────────┘     │     └────────────┐
+            ▼ ▼                  ▼                   ▼
      ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-     │  Spring Boot  │  │  Spring Boot  │  │  Spring Boot  │
+     │   Rodovia     │  │   Rodovia     │  │   Rodovia     │
      │  Instance 1   │  │  Instance 2   │  │  Instance N   │
      │  (L1 Cache)   │  │  (L1 Cache)   │  │  (L1 Cache)   │
+     │  Port 9080    │  │  Port 9080    │  │  Port 9080    │
      └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
             │                  │                  │
             └──────────┬───────┘──────────────────┘
@@ -91,29 +99,30 @@ A distributed system with:
 
 ## Tech Stack
 
-| Layer              | Technology         | Purpose                                       |
-|--------------------|--------------------|-----------------------------------------------|
-| Frontend           | React 18           | Toll booth operator interface                 |
-| API Gateway        | NGINX              | Reverse proxy and load balancer               |
-| Backend            | Spring Boot (Java 17) | Toll management microservice               |
-| L1 Cache           | Caffeine (In-App)  | Local in-memory cache per instance            |
-| L2 Cache           | Redis 7.x          | Distributed shared cache                      |
-| Database           | PostgreSQL 14      | Relational persistence (single source of truth)|
-| Load Simulation    | Python 3.10        | Concurrent transaction simulation scripts     |
-| Monitoring         | Prometheus + Grafana | Metrics collection and visualization        |
-| Containerization   | Docker Compose     | Service orchestration                         |
-| CI/CD              | Jenkins            | Continuous integration and delivery           |
+| Layer              | Technology            | Purpose                                       |
+|--------------------|-----------------------|-----------------------------------------------|
+| Frontend           | React 18              | Toll booth operator interface                 |
+| API Gateway        | NGINX                 | Reverse proxy and load balancer               |
+| Backend            | Spring Boot 4.0.3 (Java 21) | Toll management microservice (rodovia)  |
+| L1 Cache           | ConcurrentHashMap (In-App) | Local in-memory cache per instance       |
+| L2 Cache           | Redis 7.x             | Distributed shared cache                      |
+| Database           | PostgreSQL 15          | Relational persistence (single source of truth)|
+| Messaging          | Apache Kafka           | Async transaction ingestion from simulator    |
+| Simulator          | Python 3.10            | Transaction generator with CLI + GUI          |
+| Monitoring         | Prometheus + Grafana   | Metrics collection and visualization          |
+| Containerization   | Docker Compose         | Service orchestration                         |
+| CI/CD              | Jenkins                | Continuous integration and delivery           |
 
 ---
 
 ## Services
 
-| Service                            | Tech              | Description                                                |
-|------------------------------------|-------------------|------------------------------------------------------------|
-| `toll-api-gateway`                 | NGINX             | Reverse proxy, load balancing across backend instances      |
-| `toll-management-service-java`     | Spring Boot       | Core toll transaction CRUD, cache integration, metrics      |
-| `toll-frontend-react`              | React             | Operator dashboard for real-time transaction correction     |
-| `toll-simulator-python`            | Python            | Load testing scripts simulating toll booth traffic          |
+| Service                  | Tech                   | Description                                                |
+|--------------------------|------------------------|------------------------------------------------------------|
+| `toll-api-gateway`       | NGINX                  | Reverse proxy, load balancing across rodovia instances      |
+| `rodovia`                | Spring Boot 4.0.3      | Core toll management — CRUD, caching, Kafka, metrics       |
+| `toll-frontend-react`    | React 18               | Operator dashboard for real-time transaction correction     |
+| `simulador`              | Python 3.10            | Transaction simulator (CLI + GUI) producing to Kafka       |
 
 ---
 
@@ -122,9 +131,9 @@ A distributed system with:
 ### Prerequisites
 
 - Docker & Docker Compose
-- Java 17+ (for local development)
+- Java 21+ (for local development)
 - Node.js 18+ (for frontend development)
-- Python 3.10+ (for simulators)
+- Python 3.10+ (for simulator)
 
 ### Quick Start
 
@@ -149,14 +158,26 @@ cd smart-toll-cache-system
 ./scripts/build.sh
 ```
 
+### Run Simulator Locally
+
+```bash
+cd services/simulador
+pip install -r requirements.txt
+python main.py --duration 60 --rate 10
+# Or launch the GUI:
+python gui.py
+```
+
 ### Access Points
 
 | Service          | URL                          |
 |------------------|------------------------------|
 | Frontend (React) | http://localhost:3000         |
 | API Gateway      | http://localhost:80           |
+| Rodovia API      | http://localhost:9080/api     |
 | Grafana          | http://localhost:3001         |
 | Prometheus       | http://localhost:9090         |
+| Kafka            | localhost:9092                |
 
 ---
 
@@ -166,7 +187,7 @@ The project includes multiple testing layers:
 
 - **Unit Tests**: Per-service (JUnit for Java, Jest for React)
 - **Integration Tests**: Python-based (pytest) cross-service tests
-- **End-to-End Tests**: Full transaction flow validation
+- **End-to-End Tests**: Full transaction flow validation (Kafka → rodovia → DB)
 - **Robot Framework**: Acceptance testing
 - **Selenium**: UI testing (Grafana dashboards, Swagger)
 
