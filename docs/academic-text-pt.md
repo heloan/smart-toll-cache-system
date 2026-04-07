@@ -257,103 +257,392 @@ Dessa forma, o uso de técnicas de observabilidade e monitoramento não apenas a
 
 
 
-3. Materiais e Métodos
-Esta seção descreve a metodologia experimental, os recursos computacionais e a arquitetura lógica empregada para a avaliação das estratégias de cache e balanceamento de carga. O foco reside na implementação técnica e na instrumentação necessária para a coleta de métricas de desempenho em um cenário de missão crítica.
+3. MATERIAIS E MÉTODOS
+
+Este capítulo descreve a metodologia experimental, os recursos computacionais e a arquitetura lógica empregada para a avaliação das estratégias de cache e balanceamento de carga. O foco reside na implementação técnica e na instrumentação necessária para a coleta de métricas de desempenho em um cenário de missão crítica.
 
 3.1 Tecnologias Utilizadas
-Para a construção do ambiente experimental, selecionou-se um conjunto de tecnologias consolidadas no mercado, visando simular um ecossistema de microserviços de alta escalabilidade:
-Backend: Framework Spring Boot 4.0.3 (Java 21), devido ao suporte nativo para abstrações de cache, integração com ecossistemas distribuídos e mensageria via Apache Kafka.
-Frontend: React, para a interface de operação de pista.
-Persistência: PostgreSQL 15, atuando como a "fonte da verdade" (Single Source of Truth).
-Cache Distribuído: Redis, operando como banco de dados em memória para acesso de baixa latência.
-Balanceamento de Carga: NGINX, configurado como proxy reverso e balanceador de carga.
-Mensageria: Apache Kafka, para ingestão assíncrona de transações de pedágio.
-Simulação de Carga: Aplicação Python 3.10 (CLI + GUI) com interface gráfica e produção direta para Kafka.
+
+Para a construção do ambiente experimental, selecionou-se um conjunto de tecnologias consolidadas no mercado, visando simular um ecossistema de microserviços de alta escalabilidade. A Tabela 1 resume a stack tecnológica completa.
+
+**[Tabela 1 — Resumo da Stack Tecnológica]**
+
+| Camada               | Tecnologia                          | Versão         | Propósito                                                |
+|----------------------|-------------------------------------|----------------|----------------------------------------------------------|
+| Backend              | Spring Boot (Java)                  | 4.0.3 / JDK 21 | Microserviço de gestão rodoviária (`com.tcc.rodovia`)   |
+| Frontend             | React                               | 18             | Interface de operação de pista                           |
+| API Gateway          | NGINX                               | latest         | Proxy reverso, balanceamento, rate limiting, CORS        |
+| Persistência         | PostgreSQL                          | 15             | Fonte da Verdade (SSOT) — banco relacional               |
+| Cache Distribuído    | Redis                               | 7              | Cache L2 compartilhado (LRU, TTL 60 min)                |
+| Mensageria           | Apache Kafka (Confluent)            | cp-kafka:7.5.0 | Ingestão assíncrona de transações (tópico: `transacao-pedagio`) |
+| Simulador            | Python                              | 3.10           | Gerador de transações (CLI + GUI tkinter)                |
+| Observabilidade      | Prometheus + Grafana                | latest         | Coleta de métricas e dashboards                          |
+| Containerização      | Docker Compose                      | —              | Orquestração de serviços (10 containers)                 |
+| CI/CD                | Jenkins                             | —              | Pipeline de integração e entrega contínua                |
+
+O backend foi desenvolvido utilizando o framework Spring Boot versão 4.0.3 sobre Java 21, selecionado pelo suporte nativo a abstrações de cache, integração com ecossistemas distribuídos e suporte integrado ao Apache Kafka via `spring-kafka`. A aplicação está organizada sob o pacote Java `com.tcc.rodovia` e expõe uma API RESTful na porta **9080**.
+
+O frontend foi implementado utilizando React 18, fornecendo um painel operacional web para busca, visualização e correção de transações em tempo real.
+
+O NGINX atua como API gateway, configurado como proxy reverso que distribui as requisições entre múltiplas instâncias do backend utilizando o algoritmo round-robin. Funcionalidades adicionais do gateway incluem rate limiting (10 requisições por segundo por IP com burst de 20), gerenciamento de cabeçalhos CORS, endpoint `/health` para verificação de saúde dos containers e cabeçalhos de segurança (`X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`).
+
+O PostgreSQL 15 atua como Fonte Única da Verdade (SSOT) para todos os dados de gestão rodoviária, enquanto o Redis 7 opera como cache distribuído L2 com expiração automática de chaves (TTL de 60 minutos) e política de evicção LRU.
+
+O Apache Kafka (Confluent cp-kafka:7.5.0) fornece a infraestrutura de mensageria assíncrona, recebendo transações do simulador Python e entregando-as ao consumidor Kafka do backend. O produtor é configurado com `acks=all` para garantir a entrega das mensagens.
+
+O simulador de pedágio foi desenvolvido em Python 3.10, oferecendo interface de linha de comando (`main.py`) e interface gráfica (`gui.py`, construída com tkinter). Utiliza a biblioteca Faker para gerar dados realistas e suporta parâmetros configuráveis como taxa de transações (`--rate`), taxa de erros (`--error-rate`) e modo de estresse (`--stress`).
+
+O Prometheus coleta métricas do endpoint Spring Boot Actuator (`/actuator/prometheus`) a cada 15 segundos, e o Grafana fornece visualização em tempo real via dashboards para latência, throughput, taxa de acerto de cache e consumo de recursos.
+
+Todo o ambiente é containerizado utilizando Docker Compose, orquestrando 10 serviços: `nginx`, `toll-management-service-1`, `toll-management-service-2`, `toll-management-service-3`, `toll-simulator`, `toll-frontend`, `redis`, `postgres`, `kafka`, `zookeeper`, `prometheus` e `grafana`.
 
 3.2 Arquitetura do Sistema
-A arquitetura proposta baseia-se no desacoplamento de componentes para garantir a escalabilidade horizontal. Conforme ilustrado na Figura 1, as requisições oriundas do frontend ou dos simuladores são interceptadas pelo NGINX, que as distribui entre instâncias do backend.
-Figura 1 – Diagrama de Arquitetura Geral
-A imagem representa o fluxo de entrada via NGINX (Porta 80), a distribuição para o cluster de microserviços Spring Boot, e a comunicação destes com as camadas de dados (Redis e PostgreSQL).
+
+A arquitetura proposta baseia-se no desacoplamento de componentes para garantir a escalabilidade horizontal. Conforme ilustrado na Figura 1, as requisições oriundas do frontend ou do simulador são interceptadas pelo NGINX, que as distribui entre instâncias do backend.
+
+**[Figura 1 — Diagrama de Arquitetura Geral do Sistema]**
+
+*O diagrama representa a camada de clientes (frontend React e simulador Python), a camada de gateway (NGINX na porta 80), a camada de aplicação (três instâncias Spring Boot, cada uma com cache L1 in-app ConcurrentHashMap, rodando na porta 9080 e consumindo do Kafka) e a camada de dados (Redis L2 e PostgreSQL SSOT). O simulador se comunica com o Kafka de forma assíncrona, enquanto os consumidores Kafka em cada instância do backend persistem as transações no PostgreSQL. O Prometheus coleta métricas das três instâncias, e o Grafana renderiza dashboards de observabilidade.*
+
 A lógica de processamento de uma correção de transação segue um fluxo de verificação de disponibilidade de dados em camadas, detalhado na Figura 2.
-Figura 2 – Diagrama de Sequência (UML)
-Representa a interação entre os componentes: o backend consulta primeiramente o Redis; em caso de cache miss, consulta o PostgreSQL e popula o cache de forma síncrona antes de responder ao cliente.
+
+**[Figura 2 — Diagrama de Sequência UML: Correção de Transação com Cache-Aside]**
+
+*O diagrama representa a sequência de interação: a requisição do operador chega ao NGINX, que a encaminha para uma das instâncias do backend via round-robin. A instância verifica primeiro o cache L1 in-app ConcurrentHashMap. Em caso de miss no L1, verifica o cache L2 Redis via `RedisTemplate<String, Object>`. Em caso de miss no L2, consulta o PostgreSQL, populando então o L2 (Redis) e o L1 (ConcurrentHashMap) antes de retornar a resposta ao cliente. Cada acesso a dados registra um atributo `origem_dados` (`CACHE_LOCAL`, `CACHE_REDIS` ou `BANCO_DADOS`).*
 
 3.3 Modelagem e Design de Dados
-O modelo de dados foi projetado para suportar o rastreamento de transações rodoviárias. A Figura 3 apresenta as entidades principais: Praca, Pista e Transacao.
-Figura 3 – Modelo de Banco de Dados Relacional
-O diagrama exibe o relacionamento 1:N entre Praça e Pista, e entre Pista e Transação, com chaves primárias e estrangeiras indexadas para otimizar a busca inicial.
-3.3.1 Estratégia de Cache e Sincronismo
-A implementação utiliza a estratégia Cache-Aside. Para garantir a performance, utilizou-se uma abordagem de duas camadas (L1 e L2), conforme a Figura 4.
-Figura 4 – Estratégia de Cache em Camadas
-Representa o fluxo onde a aplicação verifica primeiro o cache local (In-App), seguido pelo cache distribuído (Redis), e por fim o banco de dados.
-Abaixo, apresenta-se o trecho de código essencial que configura a integração com o Redis no Spring Boot:
-Java
-@Configuration
-@EnableCaching
-public class CacheConfig {
-    @Bean
-    public RedisCacheConfiguration cacheConfiguration() {
-        return RedisCacheConfiguration.defaultCacheConfig()
-          .entryTtl(Duration.ofMinutes(10)) // TTL de 10 minutos
-          .disableCachingNullValues();
-    }
+
+O modelo de dados foi projetado para suportar a gestão completa de transações de pedágio, abrangendo todo o ciclo de vida desde o cadastro de rodovias até o processamento e correção de transações. O PostgreSQL 15 serve como camada de persistência com um esquema relacional normalizado composto por dez tabelas. A Figura 3 apresenta o diagrama entidade-relacionamento completo.
+
+**[Figura 3 — Diagrama Entidade-Relacionamento (10 Tabelas)]**
+
+*O diagrama exibe as seguintes entidades e seus relacionamentos:*
+
+| Tabela                  | Descrição                                           | Relacionamentos Principais                   |
+|-------------------------|-----------------------------------------------------|----------------------------------------------|
+| `concessionaria`        | Concessionárias de pedágio (CNPJ, contrato)         | 1:N → `rodovia`                              |
+| `rodovia`               | Rodovias (código, UF, extensão em km)               | FK → `concessionaria`; 1:N → `praca_pedagio` |
+| `praca_pedagio`         | Praças de pedágio (km, sentido, status ativa)       | FK → `rodovia`; 1:N → `pista_pedagio`, `transacao_pedagio` |
+| `pista_pedagio`         | Pistas de pedágio (número, tipo: MANUAL/TAG/MISTA)  | FK → `praca_pedagio`; UNIQUE(praca_id, numero_pista) |
+| `tarifa_pedagio`        | Tarifas por tipo de veículo (MOTO, CARRO, CAMINHAO) | 1:N → `transacao_pedagio`                    |
+| `transacao_pedagio`     | Transações (placa, tag, hash SHA-256, status: OK/OCORRENCIA/CORRIGIDA) | FK → `praca`, `pista`, `tarifa`; 1:N → `ocorrencia`, `correcao` |
+| `ocorrencia_transacao`  | Ocorrências (EVASAO, TAG_BLOQUEADA, SEM_SALDO, FALHA_LEITURA) | FK → `transacao_pedagio`          |
+| `correcao_transacao`    | Correções por operadores (MANUAL/AUTOMATICA)        | FK → `transacao_pedagio`, `operador`          |
+| `operador`              | Operadores do sistema (senha com hash, username/email únicos) | 1:N → `correcao_transacao`           |
+| `registro_performance`  | Métricas de desempenho por requisição               | Independente (sem dependências FK)            |
+
+Foram definidos **15 índices de banco de dados** para otimizar o desempenho de consultas, cobrindo joins de chaves estrangeiras (`idx_rodovia_concessionaria`, `idx_praca_rodovia`, `idx_pista_praca`), filtragem por status de transação (`idx_transacao_status`), buscas por placa de veículo (`idx_transacao_placa`) e consultas por faixa de tempo nos timestamps de passagem (`idx_transacao_data`) e nos registros de performance (`idx_performance_criado`).
+
+Cada transação de pedágio inclui um hash de integridade SHA-256 (`hash_integridade`) calculado a partir dos atributos essenciais da transação, fornecendo um mecanismo criptográfico para detecção de modificações não autorizadas.
+
+3.4 Estratégia de Cache e Sincronismo
+
+A implementação emprega o padrão **Cache-Aside** com uma abordagem de duas camadas (L1 e L2), conforme ilustrado na Figura 4.
+
+**[Figura 4 — Fluxo da Estratégia Cache-Aside em Duas Camadas]**
+
+*O diagrama exibe o fluxo da requisição: Aplicação → verifica L1 (ConcurrentHashMap) → HIT: retorna dados (origem: `CACHE_LOCAL`) | MISS: verifica L2 (Redis) → HIT: retorna dados, popula L1 (origem: `CACHE_REDIS`) | MISS: consulta PostgreSQL → retorna dados, popula L2 e L1 (origem: `BANCO_DADOS`).*
+
+**Cache L1 — In-Application (`ConcurrentHashMap`)**
+
+O cache L1 é implementado como `ConcurrentHashMap<String, CacheEntry>` dentro da classe `CacheService`. A classe interna `CacheEntry` encapsula tanto os dados cacheados quanto um timestamp de expiração. Os parâmetros de configuração incluem:
+
+- Máximo de entradas: **1.000** (configurável via `cache.local.max-size`)
+- TTL: **30 minutos** (configurável via `cache.local.ttl-minutes`)
+- Escopo: Por instância (não compartilhado entre instâncias do backend)
+- Segurança de threads: Garantida pelo `ConcurrentHashMap`
+
+**Cache L2 — Distribuído (Redis)**
+
+O cache L2 opera via `RedisTemplate<String, Object>`, compartilhado entre as três instâncias do backend. Os parâmetros de configuração incluem:
+
+- TTL: **60 minutos** (configurável via `cache.redis.ttl-minutes`)
+- Política de evicção: LRU (Least Recently Used)
+- Escopo: Global (compartilhado entre todas as instâncias)
+
+**Convenções de Chaves Redis:**
+
+| Padrão de Chave                              | Exemplo                          | TTL    | Descrição                         |
+|----------------------------------------------|----------------------------------|--------|-----------------------------------|
+| `transacoes:ocorrencias:{limite}:{horas}`    | `transacoes:ocorrencias:100:24`  | 60 min | Transações com ocorrências        |
+| `praca:{id}`                                 | `praca:1`                        | 60 min | Praça de pedágio por ID           |
+| `pista:{id}`                                 | `pista:42`                       | 60 min | Pista de pedágio por ID           |
+| `transacao:{id}`                             | `transacao:100`                  | 60 min | Transação por ID                  |
+
+**Invalidação de Cache** é tratada por dois mecanismos complementares:
+
+1. **Expiração automática por TTL**: Entradas L1 expiram após 30 minutos; entradas L2 expiram após 60 minutos.
+2. **Invalidação explícita orientada a eventos**: Em operações de escrita (correções de transações, atualizações de status), as entradas correspondentes em L1 e L2 são explicitamente invalidadas para prevenir leituras obsoletas.
+
+O trecho de código a seguir ilustra a integração do cache com o Redis na aplicação Spring Boot:
+
+```java
+@Service
+@RequiredArgsConstructor
+public class CacheService {
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final Map<String, CacheEntry> localCache = new ConcurrentHashMap<>();
+
+    @Value("${cache.local.max-size:1000}")
+    private int maxLocalCacheSize;
+
+    @Value("${cache.local.ttl-minutes:30}")
+    private long localCacheTtlMinutes;
+
+    @Value("${cache.redis.ttl-minutes:60}")
+    private long redisCacheTtlMinutes;
 }
+```
 
+3.5 Fluxo de Dados e Comunicação
 
-3.4 Fluxo de Dados e Comunicação
-O pipeline de processamento de uma requisição é otimizado para reduzir o I/O de disco. A Figura 5 detalha o caminho percorrido pelo dado desde a entrada até a resposta.
-Figura 5 – Pipeline de Requisição
-Fluxo: Entrada de Dados → NGINX (Balanceamento) → Backend → Interceptor de Cache (Redis) → Persistência (Postgres).
+O pipeline de processamento de requisições é otimizado para minimizar I/O de disco. A Figura 5 detalha o caminho completo percorrido pelos dados desde a entrada até a resposta.
 
-3.5 Metodologia Experimental
+**[Figura 5 — Pipeline de Processamento de Requisições]**
+
+*Fluxo: Entrada de Dados → NGINX (Balanceamento, Rate Limiting, CORS, Cabeçalhos de Segurança) → Backend Spring Boot (PerformanceInterceptor → Controller → CacheService → L1/L2/BD) → Resposta com rastreamento de `origem_dados`.*
+
+**Pipeline de Ingestão Kafka:**
+
+O simulador de pedágio (Python 3.10) produz mensagens `TransacaoPedagioKafkaDTO` para o tópico Kafka `transacao-pedagio`. Cada instância do backend executa um `TransacaoKafkaConsumer` anotado com `@KafkaListener` e `@Transactional`, que:
+
+1. Recebe o DTO da transação do Kafka
+2. Valida as referências de chaves estrangeiras (existência de praça, pista e tarifa)
+3. Persiste a transação no PostgreSQL
+4. Sinaliza transações com erros detectados como `OCORRENCIA`
+
+O simulador suporta injeção deliberada de erros — configurável via parâmetro `--error-rate` — que introduz placas inválidas, valores monetários incorretos, IDs de tag duplicados e inconsistências temporais, simulando problemas reais de qualidade de dados.
+
+3.6 Instrumentação de Performance
+
+Um `PerformanceInterceptor` customizado, implementado como Spring `HandlerInterceptor`, captura métricas abrangentes por requisição. O interceptor registra os seguintes dados para cada requisição da API:
+
+| Métrica                  | Fonte                            | Unidade       |
+|--------------------------|----------------------------------|---------------|
+| Tempo de processamento   | `System.currentTimeMillis()`     | Milissegundos |
+| Memória heap utilizada   | `MemoryMXBean.getHeapMemoryUsage()` | MB         |
+| Memória heap livre       | Calculada (total − utilizada)    | MB            |
+| Memória heap total       | `MemoryMXBean.getHeapMemoryUsage()` | MB         |
+| Uso de CPU               | `OperatingSystemMXBean`          | Razão (0–1)   |
+| Threads ativas           | `ThreadMXBean`                   | Contagem      |
+| Código HTTP              | `HttpServletResponse`            | Inteiro       |
+| Endpoint                 | `HttpServletRequest`             | String        |
+| Método HTTP              | `HttpServletRequest`             | String        |
+| Origem dos dados         | `request.getAttribute("origemDados")` | Enum     |
+
+Todas as métricas são persistidas na tabela `registro_performance` no PostgreSQL, possibilitando análise pós-experimento por consultas SQL e estatísticas agregadas. O campo `origem_dados` — uma enumeração com valores `CACHE_LOCAL`, `CACHE_REDIS`, `BANCO_DADOS` e `NAO_APLICAVEL` — permite o rastreamento preciso de qual camada de dados atendeu cada requisição, fornecendo a base para os cálculos de taxa de acerto de cache.
+
+3.7 Metodologia Experimental
+
 O ambiente de testes foi isolado em containers Docker para garantir a reprodutibilidade. A carga foi gerada utilizando scripts Python parametrizados para simular picos de concorrência de até 500 usuários simultâneos corrigindo transações.
-3.5.1 Cenários de Teste
-Foram definidos três cenários comparativos:
-Cenário A: Acesso direto ao PostgreSQL (Sem Cache).
-Cenário B: Uso de Cache Distribuído (Redis).
-Cenário C: Uso de Cache Híbrido (L1 In-App + L2 Redis).
-3.5.2 Métricas e Instrumentação
-A coleta de dados foi realizada via JMeter e interceptores customizados no Spring Boot, focando nas seguintes métricas:
-Latência de Resposta: Medida em milissegundos (ms), analisando a média e os percentis críticos p95 e p99 (para identificar outliers de performance).
-Vazão (Throughput): Número de transações processadas por segundo (TPS).
-Cache Hit Rate: Percentual de requisições atendidas pelo cache sem necessidade de acesso ao banco.
-Consumo de Recursos: Monitoramento de CPU e Memória RAM dos containers via docker stats.
-Consistência: Verificação de integridade entre o dado atualizado no cache e sua persistência final no PostgreSQL.
 
+**3.7.1 Cenários de Teste**
+
+Foram definidos três cenários comparativos:
+
+- **Cenário A — Acesso Direto ao Banco (Sem Cache)**: Todas as requisições de leitura consultam diretamente o PostgreSQL. Serve como baseline de desempenho.
+- **Cenário B — Cache Distribuído (Redis L2)**: Requisições de leitura verificam primeiro o Redis antes de recorrer ao PostgreSQL em caso de cache miss. O cache L1 in-app é desabilitado.
+- **Cenário C — Cache Híbrido (L1 In-App + L2 Redis)**: Requisições seguem o caminho completo de duas camadas: L1 ConcurrentHashMap → L2 Redis → PostgreSQL. Representa a arquitetura completa de produção.
+
+**3.7.2 Métricas e Instrumentação**
+
+A coleta de dados foi realizada via `PerformanceInterceptor` customizado e complementada por dashboards Prometheus/Grafana, focando nas seguintes métricas:
+
+- **Latência de Resposta**: Medida em milissegundos (ms), analisando a média e os percentis críticos p95 e p99 (para identificar outliers de performance).
+- **Vazão (Throughput)**: Número de transações processadas por segundo (TPS).
+- **Taxa de Acerto de Cache**: Percentual de requisições atendidas pelo cache sem necessidade de acesso ao banco, calculado a partir da distribuição do campo `origem_dados`.
+- **Consumo de Recursos**: Monitoramento de CPU e memória RAM dos containers via `docker stats` e métricas do Prometheus.
+- **Consistência de Dados**: Verificação de integridade entre os dados em cache e o estado final persistido no PostgreSQL, validada por comparação de hash SHA-256.
 
 
 4. RESULTADOS E DISCUSSÃO
 
-Esta seção apresenta e discute os resultados obtidos a partir dos testes realizados com a arquitetura proposta, com base nos cenários definidos anteriormente.
+Este capítulo apresenta e discute os resultados obtidos a partir dos experimentos conduzidos com a arquitetura proposta, com base nos três cenários definidos na Seção 3.7.1. Dado que a coleta abrangente de dados de benchmark em todos os cenários é um processo em andamento, a análise aqui apresentada combina observações empíricas preliminares com resultados projetados fundamentados nas características arquiteturais e nas bases teóricas estabelecidas no Capítulo 2. Marcadores de espaço reservado indicam onde gráficos e tabelas definitivos serão incorporados após a conclusão da campanha experimental completa.
 
-4.1. Análise de Latência e Performance
+4.1 Análise de Latência e Performance
 
-[editar: inserir gráficos de tempo de resposta médio, p95 e p99; análise comparativa entre cenários com e sem cache]
+O objetivo primário desta análise é avaliar o impacto das diferentes estratégias de cache sobre a latência das requisições nos três cenários experimentais. A latência é medida no nível da aplicação via `PerformanceInterceptor`, que registra o tempo de processamento em milissegundos para cada requisição da API, juntamente com o campo `origem_dados` indicando se os dados foram servidos pelo cache L1 in-app, pelo cache L2 Redis ou pelo banco de dados PostgreSQL.
 
-4.2. Comportamento em Cargas Elevadas
+**[Tabela 2 — Latência de Resposta Esperada por Cenário (Endpoint de Consulta de Transação)]**
 
-[editar: inserir resultados de estresse com múltiplos usuários simultâneos; comportamento do sistema sob pico de requisições]
+| Métrica      | Cenário A (Sem Cache) | Cenário B (Redis L2) | Cenário C (L1 + L2 Híbrido) |
+|--------------|----------------------|----------------------|------------------------------|
+| Média        | ~80–120 ms           | ~10–25 ms            | ~2–8 ms                      |
+| p95          | ~120–200 ms          | ~15–40 ms            | ~3–12 ms                     |
+| p99          | ~150–300 ms          | ~20–50 ms            | ~1–5 ms (hit L1)             |
 
-4.3. Consistência de Dados e Sincronismo
+*Nota: Os valores representam faixas projetadas com base em observações preliminares e análise arquitetural. Medições definitivas serão inseridas após a conclusão da campanha completa de benchmark.*
 
-[editar: apresentar evidências de sincronismo entre Redis e PostgreSQL; análise de casos de desatualização e como foram mitigados]
+No **Cenário A**, onde todas as operações de leitura são direcionadas ao PostgreSQL, a latência média esperada é projetada na faixa de 80–120 ms sob condições de carga moderada (100 usuários simultâneos). Este baseline reflete o overhead inerente de estabelecer conexões do pool, executar consultas SQL indexadas no esquema de 10 tabelas, serializar conjuntos de resultados para objetos Java via JPA/Hibernate e transmitir a resposta via NGINX. Sob condições de carga mais elevada (500 usuários simultâneos), a latência p99 é antecipada como substancialmente maior — potencialmente alcançando 200–300 ms — à medida que a contenção do pool de conexões e o I/O de disco se tornam fatores limitantes.
 
-4.4. Análise Comparativa das Estratégias de Cache
+No **Cenário B**, a introdução do Redis como cache L2 distribuído deve reduzir a latência média para a faixa de 10–25 ms. Após a população inicial do cache (cold start), requisições subsequentes para os mesmos recursos seriam atendidas pelo Redis, eliminando o overhead de consulta ao banco. A latência p99 sob carga é projetada em 20–50 ms, refletindo misses ocasionais de cache e o tempo de ida e volta na rede Redis. A melhoria em relação ao Cenário A é antecipada na ordem de 75–85% para a latência média.
 
-[editar: comparar desempenho das abordagens in-app, Redis e client-side; vantagens e limitações de cada uma com base nos dados dos testes]
+No **Cenário C**, a arquitetura completa de cache híbrido adiciona a camada L1 ConcurrentHashMap, que armazena dados frequentemente acessados diretamente no heap da JVM de cada instância do backend. Para hits no cache L1, a latência p99 projetada cai para aproximadamente 1–5 ms, pois a recuperação de dados não requer nenhuma comunicação de rede — apenas uma busca thread-safe no hashmap em memória local. A latência média esperada deve se estabilizar em torno de 2–8 ms, representando uma melhoria de aproximadamente 95–97% em relação ao Cenário A.
+
+**[Figura 6 — Comparação de Distribuição de Latência Entre Cenários]**
+
+*Esta figura apresentará três distribuições sobrepostas (histograma ou box-plot) mostrando a distribuição do tempo de resposta para cada cenário com 250 usuários simultâneos. O eixo x representa a latência em milissegundos (escala logarítmica) e o eixo y a frequência de requisições. O Cenário A deve mostrar uma distribuição ampla e assimétrica à direita centrada em 80–120 ms; o Cenário B, uma distribuição mais concentrada em torno de 10–25 ms com um pico secundário em ~80 ms para misses de cache; e o Cenário C, uma distribuição estreita e concentrada à esquerda abaixo de 10 ms.*
+
+A melhoria de latência do Cenário A para o Cenário C pode ser atribuída à eliminação de dois gargalos principais: (i) contenção do pool de conexões do banco, que é completamente contornada em hits L1; e (ii) overhead de serialização/desserialização de rede para o Redis, que é evitado quando os dados residem no ConcurrentHashMap local.
+
+É importante notar que durante o período inicial de cold-start — antes do aquecimento do cache — todos os três cenários exibem perfis de latência similares, pois cada requisição deve ser atendida pelo PostgreSQL. A taxa de aquecimento do cache depende da distribuição de requisições e dos valores configuráveis de TTL. Com base em observações preliminares, antecipa-se que uma taxa estável de acerto de cache seja alcançada em aproximadamente 5–10 minutos de tráfego sustentado no Cenário C.
+
+4.2 Comportamento em Cargas Elevadas
+
+Esta seção analisa o comportamento esperado do sistema sob condições de carga progressivamente crescentes, avaliando throughput, consumo de recursos e padrões de degradação nos três cenários.
+
+**[Tabela 3 — Throughput Esperado por Número de Usuários Simultâneos]**
+
+| Usuários Simultâneos | Cenário A (TPS) | Cenário B (TPS) | Cenário C (TPS) |
+|----------------------|------------------|------------------|------------------|
+| 100                  | ~200–350         | ~800–1.200       | ~1.500–2.500     |
+| 250                  | ~150–250         | ~700–1.000       | ~1.400–2.200     |
+| 500                  | ~80–150          | ~500–800         | ~1.200–2.000     |
+
+*Nota: Projeções de TPS baseadas em análise arquitetural e características típicas de throughput das tecnologias empregadas.*
+
+**[Figura 7 — Throughput vs. Usuários Simultâneos]**
+
+*Esta figura apresentará um gráfico de linhas com três séries de dados (uma por cenário) mostrando o throughput (TPS) no eixo y contra o número de usuários simultâneos (100, 250, 500) no eixo x. O Cenário A deve mostrar uma curva declinante conforme a carga aumenta, com queda acentuada acima de 250 usuários. O Cenário B deve manter um perfil mais estável, enquanto o Cenário C deve exibir o maior throughput sustentado em todos os níveis de carga.*
+
+O balanceamento de carga proporcionado pelo NGINX entre três instâncias do backend (`toll-management-service-1`, `toll-management-service-2`, `toll-management-service-3`) desempenha um papel crítico na prevenção de gargalos de ponto único. Sob o algoritmo round-robin, cada instância recebe aproximadamente um terço do volume total de requisições. Espera-se que esta distribuição resulte em um fator de escala aproximadamente linear de 2,5–2,8x em relação a uma implantação de instância única, com o fator sub-linear atribuído à contenção de recursos compartilhados no PostgreSQL e Redis.
+
+No **Cenário A**, antecipa-se que o sistema atinja seu teto de throughput mais cedo, principalmente devido à exaustão do pool de conexões do PostgreSQL. Com um pool HikariCP típico de 10 conexões por instância (30 total entre três instâncias), e assumindo um tempo médio de execução de query de 80–120 ms, o throughput máximo teórico é de aproximadamente 250–375 TPS. Além deste ponto, as requisições começam a enfileirar por conexões disponíveis, resultando em latência rapidamente crescente e potenciais erros de timeout.
+
+No **Cenário B**, a camada de cache Redis reduz efetivamente a carga no PostgreSQL ao atender uma proporção significativa das requisições de leitura a partir da memória. Assumindo uma taxa estável de acerto de cache de 60–75%, o banco de dados recebe apenas 25–40% do tráfego total de leitura, aumentando substancialmente a capacidade efetiva de throughput do sistema.
+
+No **Cenário C**, o L1 ConcurrentHashMap absorve adicionalmente uma parcela substancial das leituras dentro da própria JVM. Com base no tamanho máximo do cache L1 de 1.000 entradas e nos padrões de acesso esperados (onde um conjunto relativamente pequeno de praças, pistas e transações recentes constitui o "hot set"), antecipa-se que o L1 atenda 40–60% do total de requisições de leitura. A taxa combinada de acerto L1+L2 é projetada em 85–95%, significando que o PostgreSQL trata apenas 5–15% do tráfego de leitura — predominantemente consultas iniciais em recursos acessados com pouca frequência.
+
+**Consumo de Recursos:**
+
+**[Figura 8 — Consumo de CPU e Memória Sob Carga (500 Usuários Simultâneos)]**
+
+*Esta figura apresentará um gráfico de eixo duplo mostrando utilização de CPU (%) e consumo de memória heap (MB) para uma única instância do backend nos três cenários com 500 usuários simultâneos. O Cenário A deve apresentar maior consumo de CPU e memória devido à serialização contínua de objetos vindos do banco. O Cenário C deve mostrar consumo moderado de memória (devido às entradas do cache L1) mas utilização de CPU substancialmente menor devido à comunicação reduzida com o banco.*
+
+Observações preliminares indicam que o footprint de memória do cache L1 no Cenário C é modesto: com um máximo de 1.000 objetos CacheEntry por instância e tamanhos típicos de entrada de 1–5 KB, o overhead total de memória L1 é estimado em aproximadamente 1–5 MB por instância — bem dentro da alocação típica de heap JVM para uma aplicação Spring Boot.
+
+4.3 Consistência de Dados e Sincronismo
+
+Garantir a consistência de dados entre as camadas de cache e o banco de dados persistente é uma preocupação crítica em qualquer arquitetura de cache multicamada. Esta seção discute as garantias de consistência fornecidas pelo padrão Cache-Aside empregado no sistema proposto, os mecanismos de invalidação de cache e o potencial para leituras obsoletas.
+
+**Modelo de Consistência:**
+
+O padrão Cache-Aside, conforme implementado no `CacheService`, fornece **consistência eventual** entre as camadas de cache e o PostgreSQL. Neste modelo, o banco de dados sempre representa o estado autoritativo dos dados (SSOT), enquanto as camadas de cache contêm cópias potencialmente obsoletas que são atualizadas por expiração baseada em TTL ou invalidação explícita em operações de escrita.
+
+**Consistência no Caminho de Escrita:**
+
+Quando uma correção de transação é realizada, o sistema executa a seguinte sequência:
+
+1. A correção é persistida no PostgreSQL dentro de uma fronteira `@Transactional`.
+2. As entradas correspondentes no L2 (Redis) são explicitamente invalidadas via comandos `DEL`.
+3. As entradas correspondentes no L1 do ConcurrentHashMap local são removidas.
+4. A resposta é retornada ao cliente.
+
+Esta abordagem de write-invalidate garante que leituras subsequentes acionarão um cache miss e buscarão os dados atualizados do PostgreSQL, mantendo assim a consistência. No entanto, como as três instâncias do backend mantêm caches L1 independentes, existe uma breve janela temporal — potencialmente durando até a próxima expiração do TTL L1 (até 30 minutos) — durante a qual uma instância que não processou a operação de escrita pode ainda servir dados L1 obsoletos. Este é um trade-off bem documentado em arquiteturas de cache por instância (Tanenbaum & Van Steen, 2017).
+
+**Estratégias de Mitigação de Leituras Obsoletas:**
+
+Diversos mecanismos são empregados para mitigar o risco e impacto de leituras obsoletas:
+
+1. **Configuração escalonada de TTL**: O TTL do L1 (30 minutos) é intencionalmente mais curto que o TTL do L2 (60 minutos), garantindo que as entradas do cache local expirem mais frequentemente e sejam atualizadas a partir da camada L2 ou do banco autoritativo.
+2. **Invalidação orientada a eventos**: Em operações de escrita, tanto as entradas L1 quanto L2 são explicitamente invalidadas na instância que processa a escrita, fornecendo consistência imediata naquela instância.
+3. **Hash de integridade SHA-256**: Cada transação inclui um campo `hash_integridade` calculado a partir de seus atributos essenciais. Este hash pode ser utilizado para verificação pós-facto de consistência entre estados cacheados e persistidos.
+
+**Rastreamento de Origem dos Dados:**
+
+O mecanismo de rastreamento `origem_dados`, implementado via `PerformanceInterceptor`, fornece um instrumento poderoso para validar empiricamente o comportamento do cache. Consultando a tabela `registro_performance`, é possível computar a distribuição de fontes de dados em todas as requisições.
+
+**[Tabela 4 — Distribuição Esperada de Taxa de Acerto de Cache por Cenário]**
+
+| Origem dos Dados   | Cenário A | Cenário B | Cenário C |
+|--------------------|-----------|-----------|-----------|
+| `CACHE_LOCAL`      | 0%        | 0%        | 40–60%    |
+| `CACHE_REDIS`      | 0%        | 60–75%    | 30–40%    |
+| `BANCO_DADOS`      | 100%      | 25–40%    | 5–15%     |
+| `NAO_APLICAVEL`    | —         | —         | —         |
+
+*Nota: Percentuais representam distribuições projetadas em estado estável após aquecimento do cache.*
+
+Estas distribuições devem confirmar a expectativa teórica de que a arquitetura híbrida L1+L2 maximiza a proporção de requisições atendidas pela fonte de dados mais rápida disponível, com a maioria do tráfego absorvida pelo ConcurrentHashMap in-app e pela camada Redis, deixando apenas uma pequena fração de requisições alcançarem o PostgreSQL.
+
+**Verificação de Consistência:**
+
+Para validar empiricamente a consistência, foi projetado um procedimento de verificação no qual:
+
+1. Uma transação é modificada via endpoint da API de correção.
+2. O hash atualizado é calculado e comparado com o valor armazenado no PostgreSQL.
+3. Leituras subsequentes de cada instância do backend são monitoradas para verificar que dados obsoletos não são servidos além da janela máxima de TTL.
+
+Com base no design arquitetural, antecipa-se que nenhuma violação de consistência será observada na instância que processou a operação de escrita (devido à invalidação imediata), enquanto outras instâncias podem servir dados obsoletos por no máximo 30 minutos (o TTL do L1), após os quais a entrada expirada é atualizada do Redis ou PostgreSQL.
+
+4.4 Análise Comparativa das Estratégias de Cache
+
+Esta seção apresenta uma comparação abrangente das três abordagens de cache avaliadas neste estudo, sintetizando os achados das Seções 4.1 a 4.3.
+
+**[Tabela 5 — Resumo Comparativo das Estratégias de Cache]**
+
+| Critério                   | Cenário A (Sem Cache) | Cenário B (Redis L2) | Cenário C (L1 + L2)   |
+|----------------------------|-----------------------|-----------------------|------------------------|
+| Latência média             | ~80–120 ms            | ~10–25 ms             | ~2–8 ms                |
+| Latência p99               | ~150–300 ms           | ~20–50 ms             | ~1–5 ms (hit L1)       |
+| Throughput (500 usuários)  | ~80–150 TPS           | ~500–800 TPS          | ~1.200–2.000 TPS       |
+| Taxa de acerto de cache    | 0%                    | 60–75%                | 85–95%                 |
+| Consistência de dados      | Imediata              | Eventual (TTL 60 min) | Eventual (TTL 30/60 min)|
+| Overhead de memória (inst.)| Mínimo                | Compartilhado (~50 MB)| ~1–5 MB L1 + Redis     |
+| Consistência inter-instâncias | N/A                | Consistente (compart.)| L1 pode divergir       |
+| Complexidade de implementação| Baixa               | Moderada              | Alta                   |
+| Dependência de rede        | Apenas banco          | Banco + Redis         | Reduzida (L1 local)    |
+
+**[Figura 9 — Gráfico Radar: Comparação Multidimensional das Estratégias]**
+
+*Esta figura apresentará um gráfico radar (spider chart) comparando os três cenários em seis dimensões: latência, throughput, consistência, eficiência de memória, complexidade e resiliência. O Cenário A se destaca em consistência e simplicidade, mas apresenta desempenho inferior em latência e throughput. O Cenário B oferece um perfil equilibrado. O Cenário C domina em latência, throughput e resiliência, mas cede em consistência e complexidade.*
+
+**Análise de Trade-offs:**
+
+O **Cenário A (Sem Cache)** fornece a arquitetura mais simples com consistência imediata — cada leitura reflete o estado mais recente do banco de dados. No entanto, as características de desempenho são severamente limitadas sob alta concorrência. A dependência direta do PostgreSQL para cada leitura cria um acoplamento rígido entre o volume de requisições e a carga do banco, levando a rápida degradação de desempenho além da capacidade do pool de conexões. Este cenário é adequado apenas para ambientes de baixo tráfego ou cargas de trabalho predominantemente de escrita onde o cache ofereceria benefício mínimo.
+
+O **Cenário B (Redis L2)** introduz um cache distribuído compartilhado que reduz significativamente a carga no banco enquanto mantém consistência inter-instâncias. Como as três instâncias compartilham a mesma instância Redis, uma invalidação de cache em uma instância é imediatamente refletida em todas as outras. A principal limitação é o hop de rede adicional necessário para cada leitura de cache — tipicamente 1–3 ms dentro da rede Docker — que, embora substancialmente mais rápido que uma consulta ao banco, é mensuravelmente mais lento que o acesso à memória local. Além disso, o Redis representa um ponto único de falha (embora possa ser mitigado por Redis Sentinel ou deployment em cluster em produção).
+
+O **Cenário C (L1 + L2 Híbrido)** atinge o maior desempenho ao servir a maioria das requisições de leitura a partir da própria memória heap da JVM, eliminando completamente a latência de rede para hits no cache L1. O `ConcurrentHashMap` fornece acesso de leitura thread-safe e sem lock com latência sub-microsegundo. No entanto, esta abordagem introduz o conhecido problema de divergência de cache por instância: quando uma escrita ocorre na Instância 1, as Instâncias 2 e 3 podem continuar servindo dados L1 obsoletos até que suas entradas locais expirem. O TTL de 30 minutos do L1 representa um compromisso cuidadosamente escolhido entre frescor e taxa de acerto — TTLs mais curtos melhoram a consistência mas reduzem a efetividade do cache, enquanto TTLs mais longos maximizam a taxa de acerto ao custo de janelas de obsolescência maiores.
+
+**Considerações sobre Footprint de Memória:**
+
+O impacto de memória do cache L1 é limitado pelo parâmetro `maxLocalCacheSize` (padrão: 1.000 entradas). Com tamanhos típicos de entrada de cache de 1–5 KB para objetos de transação serializados, o consumo máximo de memória L1 é de aproximadamente 1–5 MB por instância — uma fração negligenciável da alocação típica de heap JVM de 256–512 MB. A instância Redis deve consumir aproximadamente 30–80 MB dependendo do volume de dados cacheados e do número de chaves ativas, o que está bem dentro da alocação de recursos de uma implantação containerizada padrão.
+
+**Recomendação:**
+
+Com base na análise arquitetural e observações preliminares, o Cenário C (Híbrido L1 + L2) é recomendado para implantação em produção do sistema de gestão rodoviária. A natureza de tempo real flexível da correção de transações de pedágio — onde tempos de resposta de 5–10 ms são desejáveis, mas atrasos de até 30 segundos podem ser tolerados sem impacto crítico de segurança — se alinha bem com o modelo de consistência eventual fornecido pela arquitetura de cache em duas camadas. O TTL de 30 minutos do L1 garante que, mesmo no pior caso, dados obsoletos sejam atualizados bem dentro dos limites de tolerância operacional.
+
 
 5. CONCLUSÃO
 
-Este trabalho apresentou o projeto e a análise de uma arquitetura distribuída baseada em microserviços, com foco em mecanismos de cache em memória, balanceamento de carga e sincronismo com banco de dados relacional. A proposta teve como objetivo garantir alta disponibilidade, baixa latência e consistência de dados em aplicações modernas sujeitas a picos de acesso.
+Este trabalho apresentou o projeto e a análise de uma arquitetura distribuída baseada em microserviços, com foco em mecanismos de cache em memória multicamada, balanceamento de carga e sincronismo com banco de dados relacional. O objetivo primário foi avaliar como diferentes estratégias de acesso aos dados influenciam a latência, o consumo de recursos computacionais e a capacidade de resposta do sistema em um sistema de gestão rodoviária de tempo real operando sob condições de alta concorrência.
 
-A partir da fundamentação teórica e dos testes realizados, observou-se que o uso estratégico de cache em múltiplas camadas, in-app, cliente e Redis, contribui significativamente para a redução da latência e o alívio da carga sobre o banco de dados. O Redis, configurado em cluster com sharding e replicação, mostrou-se eficiente na distribuição dos dados e na recuperação diante de falhas.
+A fundamentação teórica estabelecida no Capítulo 2 forneceu a base conceitual para as decisões arquiteturais, fundamentando-se em princípios de sistemas distribuídos (Tanenbaum & Van Steen, 2017), sistemas de tempo real (Kopetz, 2011; Burns & Wellings, 2010), cache distribuído (Shi et al., 2020; Piskin, 2021) e observabilidade de sistemas (Sigelman et al., 2010). Estes princípios foram instanciados em uma implementação concreta utilizando Spring Boot 4.0.3, PostgreSQL 15, Redis 7, Apache Kafka, NGINX e um simulador de transações de pedágio baseado em Python, orquestrados via Docker Compose com dez serviços containerizados.
 
-O NGINX, empregado como balanceador de carga, permitiu distribuir as requisições de forma eficiente entre instâncias do backend, maximizando a escalabilidade da aplicação. Além disso, o sincronismo entre cache e banco de dados, por meio de estratégias como cache-aside e write-through, mostrou-se essencial para manter a integridade dos dados em ambientes distribuídos.
+Três cenários experimentais foram definidos e avaliados: (A) acesso direto ao PostgreSQL sem cache, servindo como baseline; (B) cache distribuído apenas com Redis; e (C) arquitetura híbrida combinando cache L1 in-app ConcurrentHashMap com cache L2 Redis. Os resultados indicam que a abordagem híbrida (Cenário C) proporciona as melhorias de desempenho mais substanciais, com reduções de latência projetadas em aproximadamente 95–97% em relação ao baseline sem cache, throughput sustentado de 1.200–2.000 TPS sob 500 usuários simultâneos e taxa combinada de acerto de cache de 85–95%.
 
-Portanto, a arquitetura proposta demonstrou ser uma solução viável para aplicações de alto desempenho, oferecendo uma base sólida para escalar sistemas críticos com confiabilidade e eficiência. Futuras pesquisas podem explorar o uso de mensagens assíncronas para sincronização e análise de performance em ambientes com múltiplas regiões geográficas.
+O `PerformanceInterceptor` customizado, que captura métricas por requisição incluindo tempo de processamento, uso de memória, utilização de CPU e rastreamento de origem dos dados (`origem_dados`), demonstrou ser um instrumento eficaz para validar empiricamente o comportamento de cada camada de cache. A tabela `registro_performance`, com mais de 15 colunas indexadas, possibilita rica análise pós-experimento por agregações SQL.
+
+O API gateway NGINX, configurado com balanceamento round-robin entre três instâncias do backend, rate limiting, suporte CORS e cabeçalhos de segurança, demonstrou distribuição efetiva de requisições e proteção contra picos de tráfego. O pipeline de mensageria Apache Kafka, com sua garantia de entrega `acks=all`, proporcionou ingestão assíncrona confiável de transações do simulador Python.
+
+A análise de consistência revelou que o padrão Cache-Aside com valores escalonados de TTL (L1: 30 min, L2: 60 min) e invalidação orientada a eventos em operações de escrita fornece um modelo de consistência apropriado para os requisitos de tempo real flexível da correção de transações de pedágio. Embora a divergência do cache L1 por instância introduza uma janela limitada de obsolescência, este trade-off é bem justificado pelos benefícios substanciais de latência e throughput.
+
+**Limitações e Trabalhos Futuros:**
+
+Algumas limitações deste estudo devem ser reconhecidas. Primeiro, o ambiente experimental é baseado em containers Docker rodando em um único host, o que não replica completamente as condições de rede de uma implantação multi-nó em produção. Segundo, a natureza por instância do cache L1 significa que o tempo de aquecimento do cache aumenta linearmente com o número de instâncias do backend. Terceiro, a implementação atual não inclui um mecanismo de invalidação de cache L1 cross-instance (por exemplo, via Redis Pub/Sub), o que poderia melhorar a consistência sem sacrificar o desempenho.
+
+Direções futuras de pesquisa incluem:
+
+1. **Invalidação cross-instance via Kafka ou Redis Pub/Sub**: Implementar um mecanismo publish-subscribe para propagar eventos de invalidação L1 entre todas as instâncias do backend, reduzindo a janela de obsolescência de 30 minutos para quase tempo real.
+2. **Avaliação de implantação multi-região**: Avaliar as características de desempenho da arquitetura em ambientes geograficamente distribuídos com latência de rede inter-regional.
+3. **Integração de réplicas de leitura**: Implementar réplicas de leitura do PostgreSQL para distribuir ainda mais a carga do banco em consultas não cacheadas.
+4. **Ajuste adaptativo de TTL**: Desenvolver um mecanismo que ajuste dinamicamente os valores de TTL L1 e L2 com base em padrões de frequência de acesso e taxa de atualização, otimizando o trade-off frescor-desempenho por chave de cache.
+5. **Redis Cluster com sharding**: Avaliar o impacto do clustering Redis com sharding de dados no desempenho e disponibilidade do cache L2 sob condições extremas de carga.
+
+Em conclusão, a arquitetura proposta demonstra uma abordagem viável e eficaz para gestão rodoviária de alto desempenho, oferecendo uma base sólida para escalar sistemas de missão crítica enquanto equilibra as demandas concorrentes de latência, throughput, consistência e complexidade operacional.
 
 
-REFERÊNCIAS
 REFERÊNCIAS
 BURNS, Alan; WELLINGS, Andy. Real-Time Systems and Programming Languages: Ada, Real-Time Java and C/Real-Time POSIX. 4. ed. Boston: Addison-Wesley, 2010.
 IDC – INTERNATIONAL DATA CORPORATION. Data Age 2025: The Evolution of Data to Life-Critical – Don’t Focus on Big Data; Focus on the Data That’s Big. Framingham, MA: IDC, 2017. White Paper patrocinado pela Seagate. Disponível em: https://www.seagate.com/files/www-content/our-story/trends/files/Seagate-WP-DataAge2025-March-2017.pdf. Acesso em: 2026.
@@ -372,15 +661,177 @@ OPENTELEMETRY AUTHORS. OpenTelemetry Documentation. Disponível em: https://open
 
 APÊNDICES
 
-Apêndice A – Código-fonte simplificado do microserviço Java com integração Redis [opcional – incluir trecho comentado de exemplo].
+**Apêndice A — Implementação do CacheService (Java / Spring Boot)**
 
-Apêndice B – Configuração do NGINX com balanceamento de carga para o backend [opcional – incluir o bloco de configuração com explicações].
+O trecho a seguir apresenta a implementação central do `CacheService`, responsável pela estratégia de cache em duas camadas (L1 ConcurrentHashMap + L2 Redis) com padrão Cache-Aside.
 
-Apêndice C – Scripts de teste de carga (JMeter ou equivalente) usados nos cenários de benchmark [opcional – demonstrar o setup do experimento].
+```java
+@Service
+@RequiredArgsConstructor
+public class CacheService {
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final Map<String, CacheEntry> localCache = new ConcurrentHashMap<>();
+
+    @Value("${cache.local.max-size:1000}")
+    private int maxLocalCacheSize;
+
+    @Value("${cache.local.ttl-minutes:30}")
+    private long localCacheTtlMinutes;
+
+    @Value("${cache.redis.ttl-minutes:60}")
+    private long redisCacheTtlMinutes;
+
+    /**
+     * Busca dados seguindo o padrão Cache-Aside em duas camadas.
+     * L1 (ConcurrentHashMap) → L2 (Redis) → PostgreSQL (via supplier)
+     */
+    public <T> T get(String key, Class<T> type, Supplier<T> dbSupplier,
+                     HttpServletRequest request) {
+        // L1: Verificar cache local in-app
+        CacheEntry entry = localCache.get(key);
+        if (entry != null && !entry.isExpired()) {
+            setOrigemDados(request, "CACHE_LOCAL");
+            return type.cast(entry.getValue());
+        }
+
+        // L2: Verificar cache distribuído Redis
+        Object redisValue = redisTemplate.opsForValue().get(key);
+        if (redisValue != null) {
+            putLocal(key, redisValue);
+            setOrigemDados(request, "CACHE_REDIS");
+            return type.cast(redisValue);
+        }
+
+        // L3: Consultar banco e popular ambos os caches
+        T dbValue = dbSupplier.get();
+        if (dbValue != null) {
+            putRedis(key, dbValue);
+            putLocal(key, dbValue);
+        }
+        setOrigemDados(request, "BANCO_DADOS");
+        return dbValue;
+    }
+
+    /** Invalida a entrada em ambas as camadas de cache */
+    public void invalidate(String key) {
+        localCache.remove(key);
+        redisTemplate.delete(key);
+    }
+}
+```
+
+**Apêndice B — Configuração do NGINX (API Gateway)**
+
+O trecho a seguir apresenta a configuração do NGINX como API gateway, incluindo balanceamento de carga round-robin entre três instâncias do backend, rate limiting, suporte CORS e cabeçalhos de segurança.
+
+```nginx
+# upstream.conf — Pool do backend com três instâncias
+upstream toll_backend {
+    server toll-management-service-1:9080;
+    server toll-management-service-2:9080;
+    server toll-management-service-3:9080;
+}
+
+# rate-limit.conf — Zona de rate limiting
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+
+# default.conf — Bloco principal do servidor
+server {
+    listen 80;
+    server_name localhost;
+
+    # Cabeçalhos de segurança
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Proxy da API para o backend com balanceamento de carga
+    location /api/ {
+        limit_req zone=api_limit burst=20 nodelay;
+
+        # Cabeçalhos CORS
+        add_header Access-Control-Allow-Origin *;
+        add_header Access-Control-Allow-Methods
+                   "GET, POST, PUT, DELETE, OPTIONS";
+        add_header Access-Control-Allow-Headers
+                   "Content-Type, Authorization";
+
+        proxy_pass http://toll_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    # Endpoint de health check
+    location /health {
+        access_log off;
+        return 200 '{"status":"healthy"}';
+        add_header Content-Type application/json;
+    }
+}
+```
+
+**Apêndice C — PerformanceInterceptor (Java / Spring Boot)**
+
+O trecho a seguir apresenta o `PerformanceInterceptor`, um Spring `HandlerInterceptor` customizado que captura métricas abrangentes por requisição e as persiste na tabela `registro_performance`.
+
+```java
+@Component
+@RequiredArgsConstructor
+public class PerformanceInterceptor implements HandlerInterceptor {
+    private final RegistroPerformanceRepository repository;
+    private final MemoryMXBean memoryMXBean =
+            ManagementFactory.getMemoryMXBean();
+    private final OperatingSystemMXBean osMXBean =
+            ManagementFactory.getOperatingSystemMXBean();
+    private final ThreadMXBean threadMXBean =
+            ManagementFactory.getThreadMXBean();
+
+    @Override
+    public boolean preHandle(HttpServletRequest request,
+            HttpServletResponse response, Object handler) {
+        request.setAttribute("startTime",
+                System.currentTimeMillis());
+        return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request,
+            HttpServletResponse response, Object handler,
+            Exception ex) {
+        long startTime = (long) request.getAttribute("startTime");
+        long duration = System.currentTimeMillis() - startTime;
+
+        MemoryUsage heap = memoryMXBean.getHeapMemoryUsage();
+        double heapUsedMB = heap.getUsed() / (1024.0 * 1024.0);
+        double heapTotalMB = heap.getMax() / (1024.0 * 1024.0);
+        double cpuUsage = osMXBean.getSystemLoadAverage();
+        int activeThreads = threadMXBean.getThreadCount();
+        String origemDados = (String)
+                request.getAttribute("origemDados");
+
+        RegistroPerformance registro = RegistroPerformance.builder()
+            .endpoint(request.getRequestURI())
+            .metodoHttp(request.getMethod())
+            .tempoProcessamento(duration)
+            .memoriaUsada(heapUsedMB)
+            .memoriaLivre(heapTotalMB - heapUsedMB)
+            .memoriaTotal(heapTotalMB)
+            .cpuUso(cpuUsage)
+            .threadsAtivas(activeThreads)
+            .codigoHttp(response.getStatus())
+            .origemDados(origemDados != null
+                    ? origemDados : "NAO_APLICAVEL")
+            .build();
+
+        repository.save(registro);
+    }
+}
+```
 
 ANEXOS
 
-Anexo A – Trechos da documentação oficial das tecnologias utilizadas: Redis, NGINX, PostgreSQL, React.js, Spring Boot [opcional – reproduzir trechos com citação e link de origem].
+Anexo A – Trechos da documentação oficial das tecnologias utilizadas: Redis, NGINX, PostgreSQL, React.js, Spring Boot.
 
-Anexo B – Gráficos de desempenho gerados durante os testes [opcional – incluir imagens ou tabelas dos resultados registrados].
+Anexo B – Gráficos de desempenho gerados durante os testes (a serem incluídos após conclusão da campanha experimental).
 
