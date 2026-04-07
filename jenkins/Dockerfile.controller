@@ -1,0 +1,10 @@
+# Jenkins Controller Dockerfile for Smart Toll Cache System
+
+FROM jenkins/jenkins:lts
+
+USER root
+
+# Install required plugins (placeholder)
+# RUN jenkins-plugin-cli --plugins pipeline-stage-view docker-workflow
+
+USER jenkins

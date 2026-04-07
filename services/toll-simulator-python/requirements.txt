@@ -1,0 +1,2 @@
+# Python dependencies for Toll Simulator
+requests>=2.28

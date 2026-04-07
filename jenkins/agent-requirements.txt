@@ -1,0 +1,5 @@
+# Jenkins agent Python/tool requirements
+pytest>=7.0
+requests>=2.28
+locust>=2.15
+docker>=6.0

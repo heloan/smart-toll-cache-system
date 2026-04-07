@@ -1,0 +1,11 @@
+# Jenkins Agent Dockerfile for Smart Toll Cache System
+# Includes Java 17, Node.js, Python 3.10, Docker CLI
+
+FROM jenkins/inbound-agent:latest
+
+USER root
+
+# Install build tools (placeholder)
+# RUN apt-get update && apt-get install -y openjdk-17-jdk nodejs python3.10 docker-ce-cli
+
+USER jenkins

@@ -1,0 +1,25 @@
+# Quality gate definitions for Smart Toll Cache System
+
+quality_gates:
+  unit_test_coverage:
+    threshold: 80
+    unit: percent
+    action: block
+
+  integration_test_pass_rate:
+    threshold: 100
+    unit: percent
+    action: block
+
+  lint_errors:
+    threshold: 0
+    action: block
+
+  build_warnings:
+    threshold: 10
+    action: warn
+
+  security_vulnerabilities:
+    critical: 0
+    high: 5
+    action: block

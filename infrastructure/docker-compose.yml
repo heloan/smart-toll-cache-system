@@ -1,0 +1,133 @@
+# Smart Toll Cache System — Docker Compose
+# Full stack orchestration for development environment
+
+version: '3.8'
+
+services:
+  # --- API Gateway / Load Balancer ---
+  nginx:
+    build:
+      context: ../services/toll-api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - toll-service-1
+      - toll-service-2
+      - toll-service-3
+    networks:
+      - toll-network
+
+  # --- Backend Instances (Spring Boot) ---
+  toll-service-1:
+    build:
+      context: ../services/toll-management-service-java
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/tolldb
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - toll-network
+
+  toll-service-2:
+    build:
+      context: ../services/toll-management-service-java
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/tolldb
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - toll-network
+
+  toll-service-3:
+    build:
+      context: ../services/toll-management-service-java
+      dockerfile: Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/tolldb
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - toll-network
+
+  # --- Frontend (React) ---
+  toll-frontend:
+    build:
+      context: ../services/toll-frontend-react
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - nginx
+    networks:
+      - toll-network
+
+  # --- Distributed Cache ---
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - toll-network
+
+  # --- Relational Database ---
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_DB=tolldb
+      - POSTGRES_USER=tolluser
+      - POSTGRES_PASSWORD=tollpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - toll-network
+
+  # --- Observability ---
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - toll-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - toll-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  grafana-data:
+
+networks:
+  toll-network:
+    driver: bridge
