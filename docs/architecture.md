@@ -76,7 +76,7 @@ The Smart Toll Cache System follows a **distributed microservices architecture**
 
 ### 2. Toll Management Service — Spring Boot 4.0.3 (Java 21)
 
-- **Role**: Core business logic microservice (`com.tcc.rodovia`)
+- **Role**: Core business logic microservice (`com.stcs.tollmanagement`)
 - **Responsibilities**:
   - Full CRUD for Rodovia, Concessionaria, PracaPedagio, PistaPedagio, TarifaPedagio, Operador
   - Transaction ingestion via Kafka consumer (topic: `transacao-pedagio`)

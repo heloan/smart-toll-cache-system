@@ -302,7 +302,7 @@ For the construction of the experimental environment, a set of industry-establis
 
 | Layer                | Technology                          | Version      | Purpose                                                  |
 |----------------------|-------------------------------------|--------------|----------------------------------------------------------|
-| Backend              | Spring Boot (Java)                  | 4.0.3 / JDK 21 | Core toll management microservice (`com.tcc.rodovia`)  |
+| Backend              | Spring Boot (Java)                  | 4.0.3 / JDK 21 | Core toll management microservice (`com.stcs.tollmanagement`)  |
 | Frontend             | React                               | 18           | Lane operator dashboard interface                        |
 | API Gateway          | NGINX                               | latest       | Reverse proxy, load balancing, rate limiting, CORS       |
 | Persistent Storage   | PostgreSQL                          | 15           | Single Source of Truth (SSOT) — relational database      |
@@ -313,7 +313,7 @@ For the construction of the experimental environment, a set of industry-establis
 | Containerization     | Docker Compose                      | —            | Service orchestration (10 containers)                    |
 | CI/CD                | Jenkins                             | —            | Continuous integration and delivery pipeline              |
 
-The backend was developed using the Spring Boot framework version 4.0.3 running on Java 21, selected for its native support for cache abstractions, seamless integration with distributed ecosystems, and built-in Apache Kafka support via `spring-kafka`. The application is organized under the Java package `com.tcc.rodovia` and exposes a RESTful API on port **9080**.
+The backend was developed using the Spring Boot framework version 4.0.3 running on Java 21, selected for its native support for cache abstractions, seamless integration with distributed ecosystems, and built-in Apache Kafka support via `spring-kafka`. The application is organized under the Java package `com.stcs.tollmanagement` and exposes a RESTful API on port **9080**.
 
 The frontend was implemented using React 18, providing a web-based operator dashboard for real-time transaction search, visualization, and correction.
 

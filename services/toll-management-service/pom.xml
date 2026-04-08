@@ -8,11 +8,11 @@
 		<version>4.0.3-SNAPSHOT</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.tcc</groupId>
-	<artifactId>rodovia</artifactId>
+	<groupId>com.stcs</groupId>
+	<artifactId>tollmanagement</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>rodovia</name>
-	<description>Servidor gestão de rodivia</description>
+	<name>toll-management-service</name>
+	<description>Serviço de gestão de pedágio</description>
 	<url/>
 	<licenses>
 		<license/>

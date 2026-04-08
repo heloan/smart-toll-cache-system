@@ -1,4 +1,4 @@
-# Rodovia Service — Spring Boot (Java 21)
+# Toll Management Service — Spring Boot (Java 21)
 FROM eclipse-temurin:21-jdk-alpine AS build
 
 WORKDIR /app

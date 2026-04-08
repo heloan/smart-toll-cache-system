@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Formatador TCC — FEAU/UNIVAP</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{--bg:#f0f2f5;--panel:#fff;--text:#1a1a2e;--border:#d1d5db;--accent:#1e3a5f;--accent-light:#2d5a8e;--input-bg:#fff;--input-border:#cbd5e1;--shadow:0 2px 8px rgba(0,0,0,.1);--hover:#e8edf3}
 [data-theme=dark]{--bg:#0f172a;--panel:#1e293b;--text:#e2e8f0;--border:#334155;--accent:#60a5fa;--accent-light:#93c5fd;--input-bg:#0f172a;--input-border:#475569;--shadow:0 2px 8px rgba(0,0,0,.4);--hover:#334155}
@@ -257,7 +258,7 @@ function parseMd(md){
     else anLines.push(lines[i]);
     i++
   }
-  sections.body=bodyLines.join('\n');
+  sections.body=preprocessBody(bodyLines.join('\n'));
   sections.referencias=refLines.join('\n');
   sections.apendices=apLines.join('\n');
   sections.anexos=anLines.join('\n');
@@ -267,25 +268,39 @@ function parseMd(md){
   return sections
 }
 
+/* Convert numbered section patterns in the raw body to # headings
+   so that marked.js renders them as <h1>/<h2>/<h3> with data-toc-idx. */
+function preprocessBody(md){
+  return md.split('\n').map(function(line){
+    var l=line.trim(),m;
+    // N. ALL_CAPS_TITLE -> # chapter heading
+    if((m=l.match(/^(\d+)\.\s+(\S.+)$/))){
+      var title=m[2].trim();
+      if(title===title.toUpperCase()&&/[A-ZÀ-Ý]/.test(title[0])&&title.length<100){
+        return '# '+m[1]+'. '+title
+      }
+    }
+    // N.N.N Title -> ### subsection (must check before N.N)
+    if((m=l.match(/^(\d+\.\d+\.\d+)\s+(\S.+)$/))&&l.length<120){
+      var title2=m[2].trim();
+      if(/^[A-ZÀ-Ýa-zà-ý]/.test(title2))return '### '+m[1]+' '+title2
+    }
+    // N.N Title -> ## section
+    if((m=l.match(/^(\d+\.\d+)\s+(\S.+)$/))&&l.length<120){
+      var title3=m[2].trim();
+      if(/^[A-ZÀ-Ýa-zà-ý]/.test(title3))return '## '+m[1]+' '+title3
+    }
+    return line
+  }).join('\n')
+}
+
 function extractHeadings(body){
   allHeadings=[];
-  const lines=body.split('\n');
-  for(const line of lines){
-    const l=line.trim();
-    let m;
-    // ## heading or ### heading
+  var lines=body.split('\n');
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i].trim(),m;
     if((m=l.match(/^(#{1,3})\s+(.+)/))){
-      const level=m[1].length;
-      allHeadings.push({level,text:m[2]});continue
-    }
-    // N. TITLE pattern
-    if((m=l.match(/^(\d+)\.\s+(.+)/))){
-      allHeadings.push({level:1,text:m[1]+'. '+m[2]});continue
-    }
-    // N.N or N.N.N Title
-    if((m=l.match(/^(\d+\.\d+(?:\.\d+)?)\s+(.+)/))){
-      const dots=m[1].split('.').length;
-      allHeadings.push({level:dots,text:m[1]+' '+m[2]});continue
+      allHeadings.push({level:m[1].length,text:m[2]})
     }
   }
 }
@@ -367,14 +382,14 @@ function renderTOC(){
   const pageStyle=`style="padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt"`;
   let html=`<div class="a4-page" ${pageStyle}><div class="doc-content">
     <h1 style="text-align:center;page-break-before:avoid">SUMÁRIO</h1>`;
-  allHeadings.forEach(h=>{
+  allHeadings.forEach((h,idx)=>{
     const cls=h.level===1?'toc-h1':h.level===2?'toc-h2':'toc-h3';
-    html+=`<div class="toc-entry ${cls}"><span>${escapeHtml(h.text)}</span><span class="toc-dots"></span><span>—</span></div>`
+    html+=`<div class="toc-entry ${cls}" data-toc-idx="${idx}"><span>${escapeHtml(h.text)}</span><span class="toc-dots"></span><span class="toc-page">—</span></div>`
   });
   // Post-textual
-  if(parsedSections.referencias)html+=`<div class="toc-entry toc-h1"><span>REFERÊNCIAS</span><span class="toc-dots"></span><span>—</span></div>`;
-  if(parsedSections.apendices.trim())html+=`<div class="toc-entry toc-h1"><span>APÊNDICES</span><span class="toc-dots"></span><span>—</span></div>`;
-  if(parsedSections.anexos.trim())html+=`<div class="toc-entry toc-h1"><span>ANEXOS</span><span class="toc-dots"></span><span>—</span></div>`;
+  if(parsedSections.referencias)html+=`<div class="toc-entry toc-h1" data-toc-ref="referencias"><span>REFERÊNCIAS</span><span class="toc-dots"></span><span class="toc-page">—</span></div>`;
+  if(parsedSections.apendices.trim())html+=`<div class="toc-entry toc-h1" data-toc-ref="apendices"><span>APÊNDICES</span><span class="toc-dots"></span><span class="toc-page">—</span></div>`;
+  if(parsedSections.anexos.trim())html+=`<div class="toc-entry toc-h1" data-toc-ref="anexos"><span>ANEXOS</span><span class="toc-dots"></span><span class="toc-page">—</span></div>`;
   html+=`</div></div>`;
   return html
 }
@@ -386,13 +401,15 @@ function processBodyMd(md){
   // Custom renderer
   const renderer=new marked.Renderer();
 
+  let _hIdx=0;
   renderer.heading=function(text,level,raw){
     // Handle the tokens/text object from newer marked versions
     const headingText = typeof text === 'object' ? text.text || text.toString() : text;
     const headingDepth = typeof text === 'object' && text.depth ? text.depth : level;
-    if(headingDepth===1)return `<h1>${headingText}</h1>`;
-    if(headingDepth===2)return `<h2>${headingText}</h2>`;
-    return `<h3>${headingText}</h3>`
+    const idx=_hIdx++;
+    if(headingDepth===1)return `<h1 data-toc-idx="${idx}">${headingText}</h1>`;
+    if(headingDepth===2)return `<h2 data-toc-idx="${idx}">${headingText}</h2>`;
+    return `<h3 data-toc-idx="${idx}">${headingText}</h3>`
   };
 
   renderer.image=function(href,title,text){
@@ -403,10 +420,15 @@ function processBodyMd(md){
     const fname=imgHref.split('/').pop();
     const src=imageMap[fname]||imgHref;
     const caption=imgText||imgTitle||'';
+    // Determine source based on figure content
+    var fonte='Fonte: Elaborado pelo autor.';
+    if(/fig[6-9]|fig1[0-1]|latency|throughput|resources|radar|cache-origin|consistency/i.test(fname)){
+      fonte='Fonte: Dados obtidos na simulação experimental.'
+    }
     return `<div class="fig-container">
       ${caption?`<p class="fig-title">${caption}</p>`:''}
       <img src="${src}" alt="${caption}">
-      <p class="fig-source">Fonte: O autor</p>
+      <p class="fig-source">${fonte}</p>
     </div>`
   };
 
@@ -456,13 +478,12 @@ function renderBody(){
 
   let bodyHtml=processBodyMd(parsedSections.body);
 
-  // Split by h1 for page breaks
-  const parts=bodyHtml.split(/<h1>/);
+  // Split by h1 for page breaks (handle h1 with attributes)
+  const parts=bodyHtml.split(/(?=<h1[\s>])/);
   let pages='';
   parts.forEach((part,i)=>{
     if(!part.trim())return;
-    const content=i>0?'<h1>'+part:part;
-    pages+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content" style="--indent:${indent}">${content}</div></div>`
+    pages+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content" style="--indent:${indent}">${part}</div></div>`
   });
 
   // Add inline style for paragraph indent
@@ -475,22 +496,180 @@ function renderReferences(){
   if(!parsedSections.referencias.trim())return '';
   const pageStyle=`padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt`;
   let refHtml=marked.parse(parsedSections.referencias);
-  return `<div class="a4-page" style="${pageStyle}"><div class="doc-content references-section">${refHtml}</div></div>`
+  return `<div class="a4-page" data-toc-ref="referencias" style="${pageStyle}"><div class="doc-content references-section">${refHtml}</div></div>`
 }
 
 function renderAppendices(){
   let html='';
   const pageStyle=`padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt;line-height:${getFormVal('lineHeight')}`;
   if(parsedSections.apendices.trim()){
-    html+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content">${marked.parse(parsedSections.apendices)}</div></div>`
+    html+=`<div class="a4-page" data-toc-ref="apendices" style="${pageStyle}"><div class="doc-content">${marked.parse(parsedSections.apendices)}</div></div>`
   }
   if(parsedSections.anexos.trim()){
-    html+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content">${marked.parse(parsedSections.anexos)}</div></div>`
+    html+=`<div class="a4-page" data-toc-ref="anexos" style="${pageStyle}"><div class="doc-content">${marked.parse(parsedSections.anexos)}</div></div>`
   }
   return html
 }
 
 function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+/* ── Page Pagination ──
+   After initial render, split overflowing .a4-page divs
+   at element boundaries so every page is exactly 297 mm. */
+function paginatePages(){
+  const pc=document.getElementById('previewContent');
+
+  // Ruler to convert mm → px
+  const ruler=document.createElement('div');
+  ruler.style.cssText='height:1mm;width:0;position:absolute;visibility:hidden;pointer-events:none';
+  pc.appendChild(ruler);
+  const pxPerMm=ruler.getBoundingClientRect().height;
+  ruler.remove();
+
+  // Parse CSS margin value to mm
+  function toMm(val){
+    val=(val||'').trim().toLowerCase();
+    if(val.endsWith('cm'))return parseFloat(val)*10;
+    if(val.endsWith('mm'))return parseFloat(val);
+    return parseFloat(val)*10
+  }
+
+  const mTopMm=toMm(getFormVal('mTop'));
+  const mBotMm=toMm(getFormVal('mBottom'));
+  const maxH=(297-mTopMm-mBotMm)*pxPerMm; // usable content height in px
+
+  // Cap oversized images so a single figure never exceeds page height
+  var maxImgPx=Math.floor(maxH-80); // leave room for caption + source
+  pc.querySelectorAll('.doc-content .fig-container img').forEach(function(img){
+    if(img.getBoundingClientRect().height>maxImgPx){
+      img.style.maxHeight=maxImgPx+'px';
+      img.style.width='auto';
+    }
+  });
+
+  // Split oversized <pre> code blocks into page-sized chunks
+  pc.querySelectorAll('.doc-content pre').forEach(function(pre){
+    if(pre.scrollHeight<=maxH)return;
+    var codeEl=pre.querySelector('code');
+    var text=codeEl?codeEl.textContent:pre.textContent;
+    var allLines=text.split('\n');
+    var parent=pre.parentNode;
+    var chunks=[];
+    var chunk=[];
+
+    // Measure single-line height using a hidden probe
+    var probe=document.createElement('pre');
+    probe.style.cssText=window.getComputedStyle(pre).cssText;
+    probe.style.position='absolute';
+    probe.style.visibility='hidden';
+    probe.style.height='auto';
+    probe.style.maxHeight='none';
+    probe.innerHTML='<code>X</code>';
+    parent.appendChild(probe);
+    var lineH=probe.scrollHeight;
+    parent.removeChild(probe);
+
+    // Usable height for code (subtract padding)
+    var style=window.getComputedStyle(pre);
+    var padTop=parseFloat(style.paddingTop)||0;
+    var padBot=parseFloat(style.paddingBottom)||0;
+    var usable=maxH-padTop-padBot-20; // 20px safety
+    var linesPerChunk=Math.max(5,Math.floor(usable/((lineH/1)||16)));
+
+    for(var k=0;k<allLines.length;k++){
+      chunk.push(allLines[k]);
+      if(chunk.length>=linesPerChunk){
+        chunks.push(chunk.join('\n'));
+        chunk=[];
+      }
+    }
+    if(chunk.length>0)chunks.push(chunk.join('\n'));
+
+    // Replace original <pre> with multiple <pre> elements
+    chunks.forEach(function(c,idx){
+      var newPre=document.createElement('pre');
+      newPre.style.cssText=window.getComputedStyle(pre).cssText;
+      newPre.style.position='';
+      newPre.style.visibility='';
+      newPre.style.height='auto';
+      newPre.style.maxHeight='none';
+      if(codeEl){
+        var newCode=document.createElement('code');
+        newCode.textContent=c;
+        newPre.appendChild(newCode);
+      }else{
+        newPre.textContent=c;
+      }
+      parent.insertBefore(newPre,pre);
+    });
+    parent.removeChild(pre);
+  });
+
+  let pages=Array.from(pc.querySelectorAll('.a4-page'));
+  let safety=0;
+
+  for(let i=0;i<pages.length&&safety<500;i++,safety++){
+    const page=pages[i];
+    if(page.classList.contains('cover-page')||page.classList.contains('title-page'))continue;
+
+    const dc=page.querySelector('.doc-content');
+    if(!dc)continue;
+    if(dc.scrollHeight<=maxH+2)continue; // fits
+
+    const children=Array.from(dc.children);
+    if(children.length<=1)continue; // single element – can't split
+
+    // Find split point – keep figures, tables and pre blocks atomic
+    const dcRect=dc.getBoundingClientRect();
+    let splitIdx=-1;
+    for(let j=1;j<children.length;j++){  // j=1 keeps at least one element
+      var el=children[j];
+      var elRect=el.getBoundingClientRect();
+      var elTop=elRect.top-dcRect.top;
+      var elBottom=elRect.bottom-dcRect.top;
+
+      if(elBottom>maxH){
+        splitIdx=j; break
+      }
+
+      // Proactive: if the next element is a figure/table that won't fit,
+      // split before it so it goes entirely to the next page
+      if(j+1<children.length){
+        var next=children[j+1];
+        var isBlock=next.classList.contains('fig-container')||
+                    next.tagName==='TABLE'||next.tagName==='PRE';
+        if(isBlock&&next.getBoundingClientRect().bottom-dcRect.top>maxH){
+          splitIdx=j+1; break
+        }
+      }
+    }
+    if(splitIdx<1)continue;
+
+    // Create continuation page (same styles, no data-toc-ref)
+    const newPage=document.createElement('div');
+    newPage.className=page.className.replace(/cover-page|title-page/g,'').trim();
+    newPage.setAttribute('style',page.getAttribute('style')||'');
+
+    const newDc=document.createElement('div');
+    newDc.className=dc.className;
+    if(dc.getAttribute('style'))newDc.setAttribute('style',dc.getAttribute('style'));
+
+    // Move overflowing children
+    children.slice(splitIdx).forEach(function(el){newDc.appendChild(el)});
+
+    newPage.appendChild(newDc);
+    page.after(newPage);
+    pages.splice(i+1,0,newPage);
+    // next iteration checks the new page if it also overflows
+  }
+
+  // Enforce exact A4 height on every page
+  pc.querySelectorAll('.a4-page').forEach(function(p){
+    p.style.height='297mm';
+    p.style.maxHeight='297mm';
+    p.style.overflow='hidden';
+  });
+}
 
 /* ── Main Render ── */
 function renderPreview(){
@@ -529,56 +708,117 @@ function renderPreview(){
     h.style.textIndent=indent
   });
 
-  addPageNumbers();
-  updatePageCount();
-  runValidation()
-}
+  runValidation();
 
-function addPageNumbers(){
-  const pages=document.querySelectorAll('#previewContent .a4-page');
-  let introFound=false,pageNum=0,totalCount=0;
-  pages.forEach((page,i)=>{
-    totalCount++;
-    if(!introFound){
-      const h1s=page.querySelectorAll('h1');
-      h1s.forEach(h=>{
-        if(h.textContent.trim().match(/INTRODU[ÇC][ÃA]O/i))introFound=true
-      })
+  // Wait for all images to load so pagination measurements are accurate
+  var imgs=pc.querySelectorAll('img');
+  var pending=[];
+  imgs.forEach(function(img){
+    if(!img.complete){
+      pending.push(new Promise(function(r){img.onload=img.onerror=r}))
     }
-    // Remove existing page numbers
-    const existing=page.querySelector('.page-number');
-    if(existing)existing.remove();
-
-    if(introFound){
-      pageNum++;
-      const pn=document.createElement('div');
-      pn.className='page-number';
-      pn.textContent=pageNum;
-      pn.style.position='absolute';
-      pn.style.bottom='15mm';
-      pn.style.right=getFormVal('mRight');
-      page.style.position='relative';
-      page.appendChild(pn)
-    }
+  });
+  (pending.length?Promise.all(pending):Promise.resolve()).then(function(){
+    paginatePages();
+    var layout=computePageLayout();
+    addPageNumbers(layout);
+    updateTOCPageNumbers(layout);
+    updatePageCount(layout);
   })
 }
 
-function updatePageCount(){
-  const pages=document.querySelectorAll('#previewContent .a4-page');
-  const count=pages.length;
+/* ── Page Layout Computation ──
+   After paginatePages(), every .a4-page = exactly 1 real page.
+   We simply count pages and assign sequential numbers. */
+function computePageLayout(){
+  const pc=document.getElementById('previewContent');
+  const pages=Array.from(pc.querySelectorAll('.a4-page'));
+
+  // Find the INTRODUÇÃO page index
+  let introIdx=-1;
+  for(let i=0;i<pages.length;i++){
+    const h1s=pages[i].querySelectorAll('h1');
+    for(const h of h1s){if(h.textContent.trim().match(/INTRODU/i)){introIdx=i;break}}
+    if(introIdx>=0)break
+  }
+
+  // Build layout: 1 div = 1 page
+  let cumulativePage=0;
+  const pageLayout=[];
+  for(let i=0;i<pages.length;i++){
+    if(i<introIdx||introIdx<0){
+      pageLayout.push({elem:pages[i],startPage:0,pagesSpanned:1,numbered:false});
+      continue
+    }
+    cumulativePage++;
+    pageLayout.push({elem:pages[i],startPage:cumulativePage,pagesSpanned:1,numbered:true});
+  }
+
+  return {pc,pages,introIdx,pageLayout,totalPages:cumulativePage}
+}
+
+function updateTOCPageNumbers(layout){
+  const {pc,pages,introIdx,pageLayout}=layout;
+  if(introIdx<0)return;
+
+  for(let i=introIdx;i<pages.length;i++){
+    const pl=pageLayout[i];
+
+    // Each heading on this page gets the page's number
+    pages[i].querySelectorAll('[data-toc-idx]').forEach(function(h){
+      const idx=h.getAttribute('data-toc-idx');
+      const tocEntry=pc.querySelector('.toc-entry[data-toc-idx="'+idx+'"]');
+      if(tocEntry){
+        const span=tocEntry.querySelector('.toc-page');
+        if(span)span.textContent=pl.startPage
+      }
+    });
+
+    // Post-textual sections
+    const ref=pages[i].getAttribute('data-toc-ref');
+    if(ref){
+      const tocEntry=pc.querySelector('.toc-entry[data-toc-ref="'+ref+'"]');
+      if(tocEntry){
+        const span=tocEntry.querySelector('.toc-page');
+        if(span)span.textContent=pl.startPage
+      }
+    }
+  }
+}
+
+function addPageNumbers(layout){
+  const {pages,pageLayout}=layout;
+  pages.forEach((page,i)=>{
+    // Remove existing page numbers
+    page.querySelectorAll('.page-number').forEach(el=>el.remove());
+    const pl=pageLayout[i];
+    if(!pl.numbered)return;
+    page.style.position='relative';
+    const pn=document.createElement('div');
+    pn.className='page-number';
+    pn.textContent=pl.startPage;
+    pn.style.position='absolute';
+    pn.style.bottom='15mm';
+    pn.style.right=getFormVal('mRight');
+    page.appendChild(pn)
+  })
+}
+
+function updatePageCount(layout){
+  const {totalPages,pages}=layout;
+  const pretextual=layout.introIdx>=0?layout.introIdx:0;
+  const totalAll=pretextual+totalPages;
   const el=document.getElementById('pageCounter');
   el.style.display='block';
-  // Estimate: pretextual ~4 pages, so textual ≈ count-4
-  const textual=Math.max(count-4,0);
-  if(textual>=30&&textual<=40){
+  if(totalPages>=30&&totalPages<=40){
     el.className='page-counter ok';
-    el.textContent=`Páginas: ~${textual} (total ${count}) ✅ Dentro do limite FEAU`
-  }else if(textual<30){
+    el.textContent=`Páginas textuais: ~${totalPages} (total ~${totalAll}) ✅ Dentro do limite FEAU`
+  }else if(totalPages<30){
     el.className='page-counter warn';
-    el.textContent=`Páginas: ~${textual} (total ${count}) 🔴 Abaixo do mínimo FEAU: 30 páginas`
+    el.textContent=`Páginas textuais: ~${totalPages} (total ~${totalAll}) 🔴 Abaixo do mínimo FEAU: 30 páginas`
   }else{
     el.className='page-counter warn';
-    el.textContent=`Páginas: ~${textual} (total ${count}) 🔴 Acima do máximo FEAU: 40 páginas`
+    el.textContent=`Páginas textuais: ~${totalPages} (total ~${totalAll}) 🔴 Acima do máximo FEAU: 40 páginas`
   }
 }
 
@@ -606,68 +846,77 @@ async function exportPDF(){
   const overlay=document.getElementById('progressOverlay');
   const fill=document.getElementById('progressFill');
   overlay.classList.add('active');
-  fill.style.width='10%';
+  fill.style.width='5%';
 
-  // Clone preview for PDF
-  const content=document.getElementById('previewContent').cloneNode(true);
-  content.style.display='block';
-
-  // Temp container
+  // Temp off-screen container
   const tmp=document.createElement('div');
-  tmp.style.position='fixed';
-  tmp.style.left='-9999px';
-  tmp.style.top='0';
+  tmp.style.cssText='position:fixed;left:-9999px;top:0;width:210mm';
   document.body.appendChild(tmp);
-  tmp.appendChild(content);
 
-  fill.style.width='30%';
+  // After paginatePages(), every .a4-page is exactly 297mm
+  const srcPages=document.querySelectorAll('#previewContent .a4-page');
+  const slices=[];
+
+  srcPages.forEach(page=>{
+    const clone=page.cloneNode(true);
+    clone.style.cssText=page.style.cssText;
+    clone.style.width='210mm';
+    clone.style.height='297mm';
+    clone.style.maxHeight='297mm';
+    clone.style.overflow='hidden';
+    clone.style.boxShadow='none';
+    clone.style.margin='0';
+    tmp.appendChild(clone);
+    slices.push(clone);
+  });
+
+  fill.style.width='20%';
 
   const aluno=getFormVal('aluno1')||'Aluno';
   const filename=`TCC_${aluno.replace(/\s+/g,'_')}_${getFormVal('ano')}.pdf`;
 
-  const opt={
-    margin:0,
-    filename,
-    image:{type:'jpeg',quality:0.95},
-    html2canvas:{scale:2,useCORS:true,logging:false,width:793.7,windowWidth:793.7},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-    pagebreak:{mode:['css','legacy'],before:'.a4-page',avoid:['table','pre','.fig-container']}
-  };
-
-  fill.style.width='50%';
-
   try{
-    // Flatten: render each .a4-page as a separate PDF page
-    const pages=content.querySelectorAll('.a4-page');
-    const pagesArr=Array.from(pages);
+    // Render page-by-page to avoid canvas size limits
+    const {jsPDF}=window.jspdf;
+    let pdf=null;
+    const totalSlices=slices.length;
 
-    // Wrap each page separately for html2pdf
-    const wrapper=document.createElement('div');
-    pagesArr.forEach((p,i)=>{
-      const clone=p.cloneNode(true);
-      clone.style.width='210mm';
-      clone.style.minHeight='297mm';
-      clone.style.boxShadow='none';
-      clone.style.margin='0';
-      if(i>0)clone.style.pageBreakBefore='always';
-      wrapper.appendChild(clone)
-    });
+    for(let i=0;i<totalSlices;i++){
+      const slice=slices[i];
+      const pct=20+Math.round((i/totalSlices)*70);
+      fill.style.width=pct+'%';
 
-    tmp.innerHTML='';
-    tmp.appendChild(wrapper);
+      const canvas=await html2canvas(slice,{
+        scale:2,
+        useCORS:true,
+        logging:false,
+        width:Math.round(210/25.4*96),  // 210mm in px at 96dpi
+        windowWidth:Math.round(210/25.4*96),
+      });
 
-    fill.style.width='70%';
+      const imgData=canvas.toDataURL('image/jpeg',0.92);
+      const imgW=210;
+      const imgH=canvas.height*imgW/canvas.width;
 
-    await html2pdf().set(opt).from(wrapper).save();
+      if(i===0){
+        pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+        pdf.addImage(imgData,'JPEG',0,0,imgW,Math.min(imgH,297));
+      }else{
+        pdf.addPage();
+        pdf.addImage(imgData,'JPEG',0,0,imgW,Math.min(imgH,297));
+      }
+    }
+
+    if(pdf)pdf.save(filename);
 
     fill.style.width='100%';
-    setTimeout(()=>{overlay.classList.remove('active');fill.style.width='0'},800)
+    setTimeout(()=>{overlay.classList.remove('active');fill.style.width='0'},800);
   }catch(e){
     console.error(e);
     overlay.classList.remove('active');
-    alert('Erro ao gerar PDF: '+e.message)
+    alert('Erro ao gerar PDF: '+e.message);
   }finally{
-    document.body.removeChild(tmp)
+    document.body.removeChild(tmp);
   }
 }
 </script>

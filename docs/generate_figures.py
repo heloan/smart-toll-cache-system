@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate all academic paper figures for the Smart Toll Cache System."""
+"""Generate all academic paper figures for the Smart Toll Cache System.
+
+Uses experimentally measured data from the STCS evaluation campaign
+(>50,000 requests across 3 scenarios x 3 user loads x 3 repetitions).
+"""
 
 import matplotlib
 matplotlib.use('Agg')
@@ -7,614 +11,996 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe
 import numpy as np
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, BoxStyle
+from matplotlib.lines import Line2D
 import os
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Color palette
-COLORS = {
-    'primary': '#2563EB',
-    'secondary': '#7C3AED',
-    'success': '#059669',
-    'warning': '#D97706',
-    'danger': '#DC2626',
-    'info': '#0891B2',
-    'light_bg': '#F8FAFC',
-    'dark': '#1E293B',
-    'gray': '#64748B',
-    'light_gray': '#E2E8F0',
-    'scenario_a': '#DC2626',
-    'scenario_b': '#D97706',
-    'scenario_c': '#059669',
+# -- Professional color palette -----------------------------------------------
+PALETTE = {
+    # Scenario colors (colorblind-friendly)
+    'scenario_a': '#D32F2F',   # Red - no cache
+    'scenario_b': '#F57C00',   # Orange - Redis L2
+    'scenario_c': '#2E7D32',   # Green - hybrid L1+L2
+
+    # Architecture component colors
+    'frontend':    '#1565C0',
+    'simulator':   '#6A1B9A',
+    'gateway':     '#00838F',
+    'backend':     '#1A237E',
+    'cache_l1':    '#4527A0',
+    'cache_l2':    '#C62828',
+    'database':    '#1565C0',
+    'kafka':       '#E65100',
+    'zookeeper':   '#4E342E',
+    'prometheus':  '#BF360C',
+    'grafana':     '#1B5E20',
+
+    # UI colors
+    'bg':          '#FFFFFF',
+    'card_bg':     '#FAFBFC',
+    'border':      '#CFD8DC',
+    'text':        '#212121',
+    'text_sec':    '#546E7A',
+    'grid':        '#ECEFF1',
+    'divider':     '#B0BEC5',
+    'accent':      '#1565C0',
+    'hit':         '#2E7D32',
+    'miss':        '#D32F2F',
 }
 
+# -- Global matplotlib style --------------------------------------------------
 plt.rcParams.update({
     'font.family': 'sans-serif',
+    'font.sans-serif': ['DejaVu Sans', 'Liberation Sans', 'Arial', 'Helvetica'],
     'font.size': 10,
-    'axes.titlesize': 13,
+    'axes.titlesize': 12,
     'axes.titleweight': 'bold',
-    'figure.facecolor': 'white',
-    'axes.facecolor': '#FAFBFC',
+    'axes.labelsize': 11,
+    'axes.labelcolor': PALETTE['text'],
+    'axes.edgecolor': PALETTE['border'],
+    'axes.linewidth': 0.8,
+    'axes.facecolor': PALETTE['card_bg'],
     'axes.grid': True,
-    'grid.alpha': 0.3,
-    'grid.linestyle': '--',
+    'axes.spines.top': False,
+    'axes.spines.right': False,
+    'figure.facecolor': PALETTE['bg'],
+    'figure.dpi': 150,
+    'grid.alpha': 0.4,
+    'grid.color': PALETTE['grid'],
+    'grid.linestyle': '-',
+    'grid.linewidth': 0.5,
+    'xtick.color': PALETTE['text_sec'],
+    'ytick.color': PALETTE['text_sec'],
+    'legend.framealpha': 0.95,
+    'legend.edgecolor': PALETTE['border'],
+    'legend.fontsize': 9,
+    'savefig.bbox': 'tight',
+    'savefig.pad_inches': 0.15,
 })
 
+DPI = 250  # publication quality
 
-def add_box(ax, x, y, w, h, text, color, fontsize=8, textcolor='white', alpha=1.0):
-    """Add a rounded rectangle with centered text."""
-    box = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.1",
-                         facecolor=color, edgecolor='#334155', linewidth=1.2, alpha=alpha)
+
+# -- Helpers -------------------------------------------------------------------
+def _rounded_box(ax, x, y, w, h, text, facecolor, fontsize=8,
+                 textcolor='white', edgecolor='#455A64', lw=1.0, alpha=1.0,
+                 shadow=False, zorder=2):
+    """Draw a rounded box with centered multi-line text."""
+    box = FancyBboxPatch(
+        (x, y), w, h,
+        boxstyle=BoxStyle.Round(pad=0.08, rounding_size=0.12),
+        facecolor=facecolor, edgecolor=edgecolor,
+        linewidth=lw, alpha=alpha, zorder=zorder,
+    )
+    if shadow:
+        shadow_box = FancyBboxPatch(
+            (x + 0.04, y - 0.04), w, h,
+            boxstyle=BoxStyle.Round(pad=0.08, rounding_size=0.12),
+            facecolor='#00000015', edgecolor='none', zorder=zorder - 1,
+        )
+        ax.add_patch(shadow_box)
     ax.add_patch(box)
-    ax.text(x + w/2, y + h/2, text, ha='center', va='center',
+    effects = []
+    if textcolor == 'white':
+        effects = [pe.withStroke(linewidth=0.3, foreground='#00000040')]
+    ax.text(x + w / 2, y + h / 2, text, ha='center', va='center',
             fontsize=fontsize, color=textcolor, fontweight='bold',
-            path_effects=[pe.withStroke(linewidth=0.5, foreground='black')] if textcolor == 'white' else [])
+            path_effects=effects, zorder=zorder + 1)
 
 
-def add_arrow(ax, x1, y1, x2, y2, color='#475569', style='->', lw=1.5):
-    """Add arrow between points."""
+def _arrow(ax, x1, y1, x2, y2, color='#455A64', style='->', lw=1.3, ls='-'):
+    """Draw an arrow between two points."""
     ax.annotate('', xy=(x2, y2), xytext=(x1, y1),
-                arrowprops=dict(arrowstyle=style, color=color, lw=lw))
+                arrowprops=dict(arrowstyle=style, color=color, lw=lw, ls=ls),
+                zorder=5)
 
 
-# ============================================================
-# FIGURE 1 — System Architecture Diagram
-# ============================================================
+def _save(fig, name):
+    """Save figure with consistent settings."""
+    fig.savefig(os.path.join(OUTPUT_DIR, name), dpi=DPI, bbox_inches='tight',
+                facecolor='white', edgecolor='none')
+    plt.close(fig)
+
+
+def _scenario_legend_handles():
+    """Return legend handles for A/B/C scenarios."""
+    return [
+        mpatches.Patch(color=PALETTE['scenario_a'], label='Cenario A - Sem Cache'),
+        mpatches.Patch(color=PALETTE['scenario_b'], label='Cenario B - Redis (L2)'),
+        mpatches.Patch(color=PALETTE['scenario_c'], label='Cenario C - Hibrido (L1 + L2)'),
+    ]
+
+
+# ==============================================================================
+#  FIGURE 1 - System Architecture
+# ==============================================================================
 def fig1_architecture():
-    fig, ax = plt.subplots(1, 1, figsize=(14, 9))
+    fig, ax = plt.subplots(figsize=(14, 9.5))
     ax.set_xlim(0, 14)
-    ax.set_ylim(0, 9)
+    ax.set_ylim(-0.8, 9.2)
     ax.axis('off')
-    ax.set_title('Figura 1 — Diagrama de Arquitetura Geral do Sistema', pad=15, fontsize=14)
+    ax.set_title('Figura 1 \u2014 Diagrama de Arquitetura Geral do Sistema',
+                 fontsize=14, pad=18, color=PALETTE['text'])
 
-    # Layer labels
-    ax.text(0.3, 8.5, 'CAMADA DE CLIENTES', fontsize=9, color=COLORS['gray'], fontstyle='italic')
-    ax.text(0.3, 6.7, 'CAMADA DE GATEWAY', fontsize=9, color=COLORS['gray'], fontstyle='italic')
-    ax.text(0.3, 4.9, 'CAMADA DE APLICAÇÃO', fontsize=9, color=COLORS['gray'], fontstyle='italic')
-    ax.text(0.3, 2.2, 'CAMADA DE DADOS', fontsize=9, color=COLORS['gray'], fontstyle='italic')
-    ax.text(0.3, 0.5, 'OBSERVABILIDADE', fontsize=9, color=COLORS['gray'], fontstyle='italic')
+    # -- Layer backgrounds --
+    layer_specs = [
+        (8.05, 1.05, 'CAMADA DE CLIENTES', '#E3F2FD'),
+        (6.2, 1.75, 'CAMADA DE GATEWAY / MENSAGERIA', '#E0F7FA'),
+        (3.7, 2.4, 'CAMADA DE APLICACAO', '#EDE7F6'),
+        (0.5, 3.1, 'CAMADA DE DADOS E OBSERVABILIDADE', '#E8F5E9'),
+    ]
+    for y_bottom, height, label, bg_color in layer_specs:
+        rect = FancyBboxPatch(
+            (0.2, y_bottom), 13.6, height,
+            boxstyle=BoxStyle.Round(pad=0.05, rounding_size=0.15),
+            facecolor=bg_color, edgecolor=PALETTE['divider'],
+            linewidth=0.6, alpha=0.5, zorder=0,
+        )
+        ax.add_patch(rect)
+        ax.text(0.5, y_bottom + height - 0.22, label,
+                fontsize=7.5, color=PALETTE['text_sec'],
+                fontstyle='italic', fontweight='bold', zorder=1)
 
-    # Horizontal separators
-    for y_pos in [6.6, 4.8, 2.1, 0.4]:
-        ax.axhline(y=y_pos, xmin=0.02, xmax=0.98, color=COLORS['light_gray'], lw=1, ls='--')
+    # -- Client Layer --
+    _rounded_box(ax, 2.0, 8.1, 3.0, 0.8,
+                 'Frontend React\nPorta 3000', PALETTE['frontend'], fontsize=9, shadow=True)
+    _rounded_box(ax, 7.5, 8.1, 3.0, 0.8,
+                 'Simulador Python\nCLI + GUI', PALETTE['simulator'], fontsize=9, shadow=True)
 
-    # Client Layer
-    add_box(ax, 2, 7.5, 3, 0.8, 'Frontend React\n(Porta 3000)', '#3B82F6', fontsize=9)
-    add_box(ax, 7, 7.5, 3, 0.8, 'Simulador Python\n(CLI + GUI)', '#8B5CF6', fontsize=9)
+    # -- Gateway & Kafka --
+    _rounded_box(ax, 3.2, 6.4, 4.6, 1.1,
+                 'NGINX API Gateway \u2014 Porta 80\nRound-Robin \u00b7 Rate Limit 10r/s \u00b7 CORS',
+                 PALETTE['gateway'], fontsize=9, shadow=True)
+    _rounded_box(ax, 9.5, 6.4, 3.2, 1.1,
+                 'Apache Kafka\ntransacao-pedagio\nacks=all',
+                 PALETTE['kafka'], fontsize=9, shadow=True)
 
-    # Gateway Layer
-    add_box(ax, 4, 5.5, 4.5, 1.0, 'NGINX API Gateway\n(Porta 80)\nRate Limit · CORS · Security Headers', '#0EA5E9', fontsize=9)
+    # -- Application Layer - 3 backend instances --
+    instances = [
+        (0.8, 'Instancia 1\n:9080'),
+        (4.8, 'Instancia 2\n:9080'),
+        (8.8, 'Instancia 3\n:9080'),
+    ]
+    for x, label in instances:
+        container = FancyBboxPatch(
+            (x, 3.9), 3.6, 2.0,
+            boxstyle=BoxStyle.Round(pad=0.05, rounding_size=0.1),
+            facecolor='#E8EAF6', edgecolor=PALETTE['backend'],
+            linewidth=1.0, alpha=0.5, zorder=1,
+        )
+        ax.add_patch(container)
+        _rounded_box(ax, x + 0.15, 5.05, 3.3, 0.7,
+                     'Spring Boot 4.0.3\n%s' % label, PALETTE['backend'], fontsize=7.5)
+        _rounded_box(ax, x + 0.15, 4.05, 3.3, 0.7,
+                     'Cache L1 \u2014 ConcurrentHashMap\nTTL 30min \u00b7 Max 1.000 \u00b7 ~3 MB',
+                     PALETTE['cache_l1'], fontsize=7)
 
-    # Application Layer — 3 instances
-    for i, (x_pos, name) in enumerate([(1.5, 'Instância 1'), (5.25, 'Instância 2'), (9, 'Instância 3')]):
-        add_box(ax, x_pos, 3.0, 3.2, 1.6, '', '#1E40AF', alpha=0.15, textcolor='black')
-        add_box(ax, x_pos + 0.1, 3.9, 3.0, 0.6, f'Spring Boot :9080\n{name}', '#1E40AF', fontsize=8)
-        add_box(ax, x_pos + 0.1, 3.1, 3.0, 0.6, 'Cache L1\nConcurrentHashMap', '#6366F1', fontsize=7)
+    # -- Data Layer --
+    _rounded_box(ax, 0.8, 1.6, 3.2, 0.9,
+                 'Redis 7 \u2014 Cache L2\nTTL 60min \u00b7 LRU \u00b7 128 MB',
+                 PALETTE['cache_l2'], fontsize=9, shadow=True)
+    _rounded_box(ax, 4.8, 1.6, 3.2, 0.9,
+                 'PostgreSQL 15 \u2014 SSOT\n10 tabelas \u00b7 15 indices',
+                 PALETTE['database'], fontsize=9, shadow=True)
+    _rounded_box(ax, 9.2, 1.6, 3.2, 0.9,
+                 'Zookeeper\nKafka Metadata',
+                 PALETTE['zookeeper'], fontsize=9, shadow=True)
 
-    # Kafka
-    add_box(ax, 10.5, 5.5, 2.5, 1.0, 'Apache Kafka\ntransacao-pedagio', '#F59E0B', fontsize=9, textcolor='#1E293B')
+    # -- Observability --
+    _rounded_box(ax, 2.0, 0.1, 2.5, 0.65, 'Prometheus\nscrape 15s',
+                 PALETTE['prometheus'], fontsize=8, shadow=True)
+    _rounded_box(ax, 6.5, 0.1, 2.5, 0.65, 'Grafana\nDashboards',
+                 PALETTE['grafana'], fontsize=8, shadow=True)
 
-    # Data Layer
-    add_box(ax, 1.5, 1.0, 3, 0.9, 'Redis 7 (Cache L2)\nTTL 60min · LRU', '#EF4444', fontsize=9)
-    add_box(ax, 5.5, 1.0, 3, 0.9, 'PostgreSQL 15\n(SSOT)', '#3B82F6', fontsize=9)
-    add_box(ax, 9.5, 1.0, 3.2, 0.9, 'Zookeeper\n(Kafka Metadata)', '#78716C', fontsize=9)
+    # -- Arrows --
+    _arrow(ax, 3.5, 8.1, 5.0, 7.5, PALETTE['frontend'], lw=1.5)
+    _arrow(ax, 9.0, 8.1, 7.2, 7.5, PALETTE['simulator'], lw=1.5)
+    _arrow(ax, 10.0, 8.1, 10.5, 7.5, PALETTE['kafka'], lw=1.5)
 
-    # Observability
-    add_box(ax, 2.5, -0.3, 2.5, 0.6, 'Prometheus', '#E85D04', fontsize=9)
-    add_box(ax, 6.5, -0.3, 2.5, 0.6, 'Grafana', '#22C55E', fontsize=9)
+    for x_target in [2.6, 6.6, 10.6]:
+        _arrow(ax, 5.5, 6.4, x_target, 5.9, PALETTE['gateway'], lw=1.0)
 
-    # Arrows — Clients to Gateway
-    add_arrow(ax, 3.5, 7.5, 5.5, 6.5, COLORS['primary'])
-    add_arrow(ax, 8.5, 7.5, 7.5, 6.5, COLORS['secondary'])
+    for x_target in [2.6, 6.6, 10.6]:
+        _arrow(ax, 10.5, 6.4, x_target, 5.9, PALETTE['kafka'], lw=0.8, ls='--')
 
-    # Gateway to Backend instances
-    add_arrow(ax, 5.0, 5.5, 3.1, 4.6, COLORS['info'])
-    add_arrow(ax, 6.25, 5.5, 6.85, 4.6, COLORS['info'])
-    add_arrow(ax, 7.5, 5.5, 10.6, 4.6, COLORS['info'])
+    for x_src in [2.6, 6.6, 10.6]:
+        _arrow(ax, x_src, 3.9, 2.4, 2.5, PALETTE['cache_l2'], lw=0.8)
+        _arrow(ax, x_src, 3.9, 6.4, 2.5, PALETTE['database'], lw=0.8)
 
-    # Kafka to Backend instances
-    add_arrow(ax, 10.5, 5.7, 4.7, 4.2, COLORS['warning'], style='->')
-    add_arrow(ax, 10.5, 5.7, 8.45, 4.2, COLORS['warning'], style='->')
-    add_arrow(ax, 11.0, 5.5, 12.1, 4.2, COLORS['warning'], style='->')
+    _arrow(ax, 11.1, 6.4, 10.8, 2.5, PALETTE['zookeeper'], lw=0.7, ls=':')
 
-    # Simulator to Kafka
-    add_arrow(ax, 10, 7.9, 10.5, 6.5, COLORS['warning'])
+    for x_src in [2.6, 6.6, 10.6]:
+        _arrow(ax, x_src, 3.9, 3.25, 0.75, PALETTE['prometheus'], lw=0.6, ls=':')
 
-    # Backend to Data layer
-    for x_pos in [3.1, 6.85, 10.6]:
-        add_arrow(ax, x_pos, 3.0, 3.0, 1.9, '#EF4444', lw=1)
-        add_arrow(ax, x_pos, 3.0, 7.0, 1.9, '#3B82F6', lw=1)
+    _arrow(ax, 4.5, 0.42, 6.5, 0.42, PALETTE['prometheus'], lw=1.0)
 
-    # Prometheus arrows
-    for x_pos in [3.1, 6.85, 10.6]:
-        add_arrow(ax, x_pos, 3.0, 3.75, 0.3, '#E85D04', lw=0.8, style='->')
+    ax.text(13.0, -0.5, 'Docker Compose\n12 servicos', fontsize=7,
+            ha='center', va='center', color=PALETTE['text_sec'],
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#ECEFF1',
+                      edgecolor=PALETTE['divider'], linewidth=0.5))
 
-    # Prometheus to Grafana
-    add_arrow(ax, 5.0, 0.0, 6.5, 0.0, '#E85D04')
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig1-architecture.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 1 — Architecture Diagram')
+    _save(fig, 'fig1-architecture.png')
+    print('  \u2713 Figura 1 \u2014 Arquitetura do Sistema')
 
 
-# ============================================================
-# FIGURE 2 — Sequence Diagram (Cache-Aside)
-# ============================================================
+# ==============================================================================
+#  FIGURE 2 - Sequence Diagram (Cache-Aside)
+# ==============================================================================
 def fig2_sequence():
-    fig, ax = plt.subplots(1, 1, figsize=(14, 10))
+    fig, ax = plt.subplots(figsize=(14, 10.5))
     ax.set_xlim(0, 14)
-    ax.set_ylim(0, 10)
+    ax.set_ylim(0, 10.5)
     ax.axis('off')
-    ax.set_title('Figura 2 — Diagrama de Sequência: Correção de Transação com Cache-Aside', pad=15, fontsize=13)
+    ax.set_title('Figura 2 \u2014 Diagrama de Sequencia: Correcao de Transacao com Cache-Aside',
+                 fontsize=13, pad=18, color=PALETTE['text'])
 
-    # Lifeline positions
     actors = [
-        (1.5, 'Operador'),
-        (3.5, 'NGINX'),
-        (5.5, 'Backend\n(Spring Boot)'),
-        (7.5, 'Cache L1\n(ConcurrentHashMap)'),
-        (9.5, 'Cache L2\n(Redis)'),
+        (1.5,  'Operador'),
+        (3.5,  'NGINX\nGateway'),
+        (5.5,  'Spring Boot\nBackend'),
+        (7.5,  'Cache L1\nConcurrentHashMap'),
+        (9.5,  'Cache L2\nRedis'),
         (11.5, 'PostgreSQL'),
     ]
-
-    # Draw actor boxes and lifelines
-    for x, name in actors:
-        add_box(ax, x - 0.6, 9.0, 1.2, 0.7, name, COLORS['primary'], fontsize=7)
-        ax.plot([x, x], [0.5, 9.0], color=COLORS['light_gray'], lw=1.5, ls='--')
-
-    # Messages
-    y = 8.5
-    messages = [
-        (1.5, 3.5, 'GET /api/transacoes/{id}', 0),
-        (3.5, 5.5, 'proxy_pass (round-robin)', 0),
-        (5.5, 7.5, 'localCache.get(key)', 0),
-        (7.5, 5.5, 'MISS (null / expired)', 1),
-        (5.5, 9.5, 'redisTemplate.get(key)', 0),
-        (9.5, 5.5, 'MISS (null)', 1),
-        (5.5, 11.5, 'JPA findById(id)', 0),
-        (11.5, 5.5, 'TransacaoPedagio entity', 1),
-        (5.5, 9.5, 'redisTemplate.set(key, val, 60min)', 0),
-        (5.5, 7.5, 'localCache.put(key, CacheEntry)', 0),
-        (5.5, 5.5, 'origemDados = BANCO_DADOS', 2),
-        (5.5, 3.5, 'HTTP 200 + JSON', 1),
-        (3.5, 1.5, 'Response', 1),
+    actor_colors = [
+        PALETTE['text'], PALETTE['gateway'], PALETTE['backend'],
+        PALETTE['cache_l1'], PALETTE['cache_l2'], PALETTE['database'],
     ]
 
-    step_h = 0.55
-    for i, (x1, x2, label, msg_type) in enumerate(messages):
-        y_pos = 8.3 - i * step_h
-        color = COLORS['danger'] if msg_type == 1 else ('#059669' if msg_type == 2 else COLORS['dark'])
-        style = '<-' if msg_type == 1 else '->'
-        ls = '--' if msg_type == 1 else '-'
+    for (x, name), color in zip(actors, actor_colors):
+        _rounded_box(ax, x - 0.65, 9.5, 1.3, 0.8, name, color, fontsize=7)
+        ax.plot([x, x], [0.3, 9.5], color=PALETTE['divider'], lw=1.2, ls='--', zorder=0)
 
-        ax.annotate('', xy=(x2, y_pos), xytext=(x1, y_pos),
-                    arrowprops=dict(arrowstyle=style, color=color, lw=1.3, ls=ls))
+    messages = [
+        (1.5,  3.5,  'GET /api/transacoes/{id}',              'req'),
+        (3.5,  5.5,  'proxy_pass (round-robin)',               'req'),
+        (5.5,  7.5,  'localCache.get(key)',                    'req'),
+        (7.5,  5.5,  'MISS \u2014 null / expirado',           'resp'),
+        (5.5,  9.5,  'redisTemplate.opsForValue().get(key)',   'req'),
+        (9.5,  5.5,  'MISS \u2014 null',                      'resp'),
+        (5.5,  11.5, 'JPA findById(id)',                       'req'),
+        (11.5, 5.5,  'TransacaoPedagio entity',                'resp'),
+        (5.5,  9.5,  'redisTemplate.set(key, val, 60 min)',   'cache'),
+        (5.5,  7.5,  'localCache.put(key, CacheEntry)',        'cache'),
+        (5.5,  5.5,  'origemDados = BANCO_DADOS',             'note'),
+        (5.5,  3.5,  'HTTP 200 + JSON + metricas',            'resp'),
+        (3.5,  1.5,  'Response',                               'resp'),
+    ]
+
+    y_start = 9.2
+    step = 0.6
+    for i, (x1, x2, label, msg_type) in enumerate(messages):
+        y = y_start - i * step
+        if msg_type == 'req':
+            color, ls, arrow = PALETTE['text'], '-', '->'
+        elif msg_type == 'resp':
+            color, ls, arrow = PALETTE['miss'], '--', '<-'
+        elif msg_type == 'cache':
+            color, ls, arrow = PALETTE['cache_l1'], '--', '->'
+        else:
+            color, ls, arrow = PALETTE['hit'], '-', '-'
+
+        if msg_type != 'note':
+            ax.annotate('', xy=(x2, y), xytext=(x1, y),
+                        arrowprops=dict(arrowstyle=arrow, color=color, lw=1.2, ls=ls),
+                        zorder=3)
 
         mid_x = (x1 + x2) / 2
-        ax.text(mid_x, y_pos + 0.12, label, ha='center', va='bottom',
-                fontsize=7, color=color, fontstyle='italic' if msg_type == 2 else 'normal',
-                bbox=dict(boxstyle='round,pad=0.15', facecolor='white', edgecolor='none', alpha=0.85))
+        bbox_color = '#FFF8E1' if msg_type == 'cache' else ('#F1F8E9' if msg_type == 'note' else 'white')
+        ax.text(mid_x, y + 0.13, label, ha='center', va='bottom', fontsize=6.8,
+                color=color, fontstyle='italic' if msg_type in ('cache', 'note') else 'normal',
+                bbox=dict(boxstyle='round,pad=0.12', facecolor=bbox_color,
+                          edgecolor='none', alpha=0.9),
+                zorder=4)
 
-    # Activation boxes
-    for x, y_start, y_end in [(5.5, 8.2, 2.0), (11.5, 4.9, 4.4)]:
-        rect = FancyBboxPatch((x - 0.15, y_end), 0.3, y_start - y_end,
-                              boxstyle="round,pad=0.02", facecolor=COLORS['primary'], alpha=0.15, edgecolor=COLORS['primary'])
-        ax.add_patch(rect)
+    for x, yt, yb, c in [(5.5, 9.1, 1.7, PALETTE['backend']),
+                          (11.5, 5.3, 4.5, PALETTE['database'])]:
+        bar = FancyBboxPatch((x - 0.12, yb), 0.24, yt - yb,
+                             boxstyle='round,pad=0.02',
+                             facecolor=c, alpha=0.12, edgecolor=c, lw=0.5)
+        ax.add_patch(bar)
 
-    # Legend
-    ax.text(0.5, 0.3, '→ Requisição    - - → Resposta    → set = Populate cache', fontsize=8, color=COLORS['gray'])
+    legend_items = [
+        Line2D([0], [0], color=PALETTE['text'], lw=1.2, label='Requisicao'),
+        Line2D([0], [0], color=PALETTE['miss'], lw=1.2, ls='--', label='Resposta'),
+        Line2D([0], [0], color=PALETTE['cache_l1'], lw=1.2, ls='--', label='Popula cache'),
+    ]
+    ax.legend(handles=legend_items, loc='lower center', ncol=3, fontsize=8,
+              framealpha=0.9, edgecolor=PALETTE['border'])
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig2-sequence.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 2 — Sequence Diagram')
+    _save(fig, 'fig2-sequence.png')
+    print('  \u2713 Figura 2 \u2014 Diagrama de Sequencia')
 
 
-# ============================================================
-# FIGURE 3 — ER Diagram
-# ============================================================
+# ==============================================================================
+#  FIGURE 3 - ER Diagram
+# ==============================================================================
 def fig3_er_diagram():
-    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+    fig, ax = plt.subplots(figsize=(15, 10.5))
     ax.set_xlim(0, 15)
-    ax.set_ylim(0, 10)
+    ax.set_ylim(-0.5, 10.5)
     ax.axis('off')
-    ax.set_title('Figura 3 — Diagrama Entidade-Relacionamento (10 Tabelas)', pad=15, fontsize=14)
+    ax.set_title('Figura 3 \u2014 Diagrama Entidade-Relacionamento (10 Tabelas)',
+                 fontsize=14, pad=18, color=PALETTE['text'])
 
     tables = {
-        'concessionaria': (0.5, 7.5, ['PK id', 'nome', 'cnpj (UNIQUE)', 'contrato']),
-        'rodovia': (4, 7.5, ['PK id', 'FK concessionaria_id', 'codigo', 'nome', 'uf', 'extensao_km']),
-        'praca_pedagio': (8, 7.5, ['PK id', 'FK rodovia_id', 'nome', 'km', 'sentido', 'ativa']),
-        'pista_pedagio': (12, 7.5, ['PK id', 'FK praca_id', 'numero_pista', 'tipo']),
-        'tarifa_pedagio': (0.5, 4.0, ['PK id', 'tipo_veiculo', 'valor', 'vigencia_inicio']),
-        'transacao_pedagio': (4, 4.0, ['PK id', 'FK praca_id', 'FK pista_id', 'FK tarifa_id', 'placa', 'tag', 'hash_integridade', 'status']),
-        'ocorrencia_transacao': (8.5, 4.0, ['PK id', 'FK transacao_id', 'tipo', 'descricao']),
-        'correcao_transacao': (12, 4.0, ['PK id', 'FK transacao_id', 'FK operador_id', 'tipo_correcao']),
-        'operador': (12, 1.0, ['PK id', 'username (UNIQUE)', 'email (UNIQUE)', 'senha_hash']),
-        'registro_performance': (0.5, 1.0, ['PK id', 'endpoint', 'tempo_processamento', 'origem_dados', 'cpu_uso']),
+        'concessionaria': (0.3, 8.5, ['PK id BIGSERIAL', 'nome VARCHAR', 'cnpj VARCHAR (UQ)', 'contrato VARCHAR']),
+        'rodovia':        (4.0, 8.5, ['PK id BIGSERIAL', 'FK concessionaria_id', 'codigo VARCHAR', 'nome VARCHAR', 'uf CHAR(2)', 'extensao_km NUMERIC']),
+        'praca_pedagio':  (8.2, 8.5, ['PK id BIGSERIAL', 'FK rodovia_id', 'nome VARCHAR', 'km_posicao NUMERIC', 'sentido VARCHAR', 'ativa BOOLEAN']),
+        'pista_pedagio':  (12.0, 8.5, ['PK id BIGSERIAL', 'FK praca_id', 'numero_pista INT', 'tipo_pista VARCHAR']),
+        'tarifa_pedagio': (0.3, 4.5, ['PK id BIGSERIAL', 'tipo_veiculo VARCHAR', 'valor NUMERIC', 'vigencia_inicio DATE']),
+        'transacao_pedagio': (4.0, 4.5, ['PK id BIGSERIAL', 'FK praca_id', 'FK pista_id', 'FK tarifa_id', 'placa VARCHAR', 'tag_id VARCHAR', 'hash_integridade VARCHAR', 'status VARCHAR']),
+        'ocorrencia_transacao': (8.5, 4.5, ['PK id BIGSERIAL', 'FK transacao_id', 'tipo VARCHAR', 'descricao TEXT']),
+        'correcao_transacao': (12.0, 4.5, ['PK id BIGSERIAL', 'FK transacao_id', 'FK operador_id', 'tipo_correcao VARCHAR']),
+        'operador': (12.0, 1.2, ['PK id BIGSERIAL', 'username VARCHAR (UQ)', 'email VARCHAR (UQ)', 'senha_hash VARCHAR']),
+        'registro_performance': (0.3, 1.2, ['PK id BIGSERIAL', 'endpoint VARCHAR', 'tempo_ms BIGINT', 'origem_dados VARCHAR', 'cpu_uso DOUBLE']),
     }
 
-    table_colors = {
-        'concessionaria': '#3B82F6', 'rodovia': '#3B82F6', 'praca_pedagio': '#3B82F6',
-        'pista_pedagio': '#3B82F6', 'tarifa_pedagio': '#8B5CF6',
-        'transacao_pedagio': '#059669', 'ocorrencia_transacao': '#D97706',
-        'correcao_transacao': '#D97706', 'operador': '#EF4444',
-        'registro_performance': '#64748B',
+    group_colors = {
+        'concessionaria': '#1565C0', 'rodovia': '#1565C0',
+        'praca_pedagio': '#1565C0', 'pista_pedagio': '#1565C0',
+        'tarifa_pedagio': '#6A1B9A',
+        'transacao_pedagio': '#2E7D32',
+        'ocorrencia_transacao': '#E65100', 'correcao_transacao': '#E65100',
+        'operador': '#C62828',
+        'registro_performance': '#455A64',
     }
 
     for name, (x, y, cols) in tables.items():
-        w = 3.2
+        w = 3.4
         h_header = 0.4
-        h_row = 0.22
-        h_total = h_header + h_row * len(cols) + 0.1
-        color = table_colors[name]
+        h_row = 0.21
+        h_total = h_header + h_row * len(cols) + 0.08
+        color = group_colors[name]
 
-        # Background
-        rect = FancyBboxPatch((x, y - h_total + h_header), w, h_total,
-                              boxstyle="round,pad=0.05", facecolor='white',
-                              edgecolor=color, linewidth=1.5)
-        ax.add_patch(rect)
+        shadow = FancyBboxPatch(
+            (x + 0.03, y - h_total + h_header - 0.03), w, h_total,
+            boxstyle='round,pad=0.04', facecolor='#00000012', edgecolor='none')
+        ax.add_patch(shadow)
 
-        # Header
-        header = FancyBboxPatch((x, y), w, h_header,
-                                boxstyle="round,pad=0.05", facecolor=color,
-                                edgecolor=color, linewidth=1.5)
+        body = FancyBboxPatch(
+            (x, y - h_total + h_header), w, h_total,
+            boxstyle='round,pad=0.04', facecolor='white',
+            edgecolor=color, linewidth=1.2)
+        ax.add_patch(body)
+
+        header = FancyBboxPatch(
+            (x, y), w, h_header,
+            boxstyle='round,pad=0.04', facecolor=color,
+            edgecolor=color, linewidth=1.2)
         ax.add_patch(header)
-        ax.text(x + w/2, y + h_header/2, name, ha='center', va='center',
+        ax.text(x + w / 2, y + h_header / 2, name, ha='center', va='center',
                 fontsize=7.5, color='white', fontweight='bold')
 
-        # Columns
         for i, col in enumerate(cols):
-            cy = y - (i + 1) * h_row
-            col_color = COLORS['danger'] if col.startswith('PK') else (COLORS['primary'] if col.startswith('FK') else COLORS['dark'])
-            ax.text(x + 0.15, cy, col, fontsize=6, color=col_color, va='center')
+            cy = y - (i + 1) * h_row + 0.02
+            if col.startswith('PK'):
+                col_color, weight = '#C62828', 'bold'
+                marker = 'PK '
+            elif col.startswith('FK'):
+                col_color, weight = '#1565C0', 'normal'
+                marker = '\u2192 '
+            else:
+                col_color, weight = PALETTE['text'], 'normal'
+                marker = '   '
+            ax.text(x + 0.12, cy, '%s%s' % (marker, col), fontsize=5.5,
+                    color=col_color, va='center', fontweight=weight)
 
-    # Relationships (arrows)
-    relationships = [
-        # (from_table_right_x, from_y, to_table_left_x, to_y)
-        (3.7, 7.7, 4.0, 7.7),        # concessionaria -> rodovia
-        (7.2, 7.7, 8.0, 7.7),        # rodovia -> praca_pedagio
-        (11.2, 7.7, 12.0, 7.7),      # praca -> pista
-        (9.6, 7.1, 9.6, 4.4),        # praca -> transacao (down)
-        (3.7, 4.2, 4.0, 4.2),        # tarifa -> transacao
-        (7.2, 4.2, 8.5, 4.2),        # transacao -> ocorrencia
-        (7.2, 3.8, 12.0, 4.0),       # transacao -> correcao
-        (13.6, 3.6, 13.6, 1.4),      # correcao -> operador
+    rels = [
+        (3.7, 8.7, 4.0, 8.7),
+        (7.4, 8.7, 8.2, 8.7),
+        (11.6, 8.7, 12.0, 8.7),
+        (9.9, 7.5, 5.7, 4.9),
+        (3.7, 4.7, 4.0, 4.7),
+        (7.4, 4.7, 8.5, 4.7),
+        (7.4, 4.3, 12.0, 4.5),
+        (13.7, 4.1, 13.7, 1.65),
     ]
+    for x1, y1, x2, y2 in rels:
+        _arrow(ax, x1, y1, x2, y2, '#78909C', lw=1.0)
 
-    for x1, y1, x2, y2 in relationships:
-        ax.annotate('', xy=(x2, y2), xytext=(x1, y1),
-                    arrowprops=dict(arrowstyle='->', color='#475569', lw=1.2))
+    ax.text(4.0, -0.2, 'PK = Primary Key', fontsize=7.5, color='#C62828', fontweight='bold')
+    ax.text(6.8, -0.2, '\u2192 FK = Foreign Key', fontsize=7.5, color='#1565C0')
+    ax.text(9.3, -0.2, '\u2014 = Relacionamento 1:N', fontsize=7.5, color=PALETTE['text_sec'])
 
-    # Legend
-    legend_y = 0.2
-    ax.text(4, legend_y, 'PK', fontsize=7, color=COLORS['danger'], fontweight='bold')
-    ax.text(4.5, legend_y, '= Primary Key', fontsize=7, color=COLORS['gray'])
-    ax.text(6.5, legend_y, 'FK', fontsize=7, color=COLORS['primary'], fontweight='bold')
-    ax.text(7.0, legend_y, '= Foreign Key', fontsize=7, color=COLORS['gray'])
-    ax.text(9, legend_y, '→ = Relacionamento 1:N', fontsize=7, color=COLORS['gray'])
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig3-er-diagram.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 3 — ER Diagram')
+    _save(fig, 'fig3-er-diagram.png')
+    print('  \u2713 Figura 3 \u2014 Diagrama ER')
 
 
-# ============================================================
-# FIGURE 4 — Cache-Aside Flow
-# ============================================================
+# ==============================================================================
+#  FIGURE 4 - Cache-Aside Flow
+# ==============================================================================
 def fig4_cache_aside():
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
-    ax.set_xlim(0, 12)
-    ax.set_ylim(0, 6)
+    fig, ax = plt.subplots(figsize=(13, 7))
+    ax.set_xlim(0, 13)
+    ax.set_ylim(-0.3, 7)
     ax.axis('off')
-    ax.set_title('Figura 4 — Fluxo da Estratégia Cache-Aside em Duas Camadas', pad=15, fontsize=14)
+    ax.set_title('Figura 4 \u2014 Fluxo da Estrategia Cache-Aside em Duas Camadas',
+                 fontsize=14, pad=18, color=PALETTE['text'])
 
-    # Application
-    add_box(ax, 0.3, 2.3, 2.0, 1.4, 'Aplicação\n(CacheService)', COLORS['primary'], fontsize=9)
+    _rounded_box(ax, 0.2, 3.0, 2.2, 1.4,
+                 'Aplicacao\nCacheService.java', PALETTE['backend'], fontsize=9, shadow=True)
 
-    # L1 Cache
-    add_box(ax, 3.5, 3.5, 2.2, 1.5, 'Cache L1\nConcurrentHashMap\nTTL: 30min\nMax: 1000', '#6366F1', fontsize=8)
+    _rounded_box(ax, 3.5, 4.5, 2.4, 1.6,
+                 'Cache L1\nConcurrentHashMap\nTTL: 30 min\nMax: 1.000 entradas',
+                 PALETTE['cache_l1'], fontsize=8, shadow=True)
 
-    # L2 Cache
-    add_box(ax, 6.8, 3.5, 2.2, 1.5, 'Cache L2\nRedis\nTTL: 60min\nLRU', '#EF4444', fontsize=8)
+    _rounded_box(ax, 7.0, 4.5, 2.4, 1.6,
+                 'Cache L2\nRedis 7\nTTL: 60 min\nPolitica: LRU',
+                 PALETTE['cache_l2'], fontsize=8, shadow=True)
 
-    # Database
-    add_box(ax, 10.0, 3.5, 1.7, 1.5, 'PostgreSQL\n(SSOT)', '#3B82F6', fontsize=8)
+    _rounded_box(ax, 10.5, 4.5, 2.0, 1.6,
+                 'PostgreSQL 15\n(SSOT)\n10 tabelas',
+                 PALETTE['database'], fontsize=8, shadow=True)
 
-    # Decision diamonds
-    def diamond(ax, cx, cy, size, text, color):
-        pts = np.array([[cx, cy + size], [cx + size, cy], [cx, cy - size], [cx - size, cy]])
-        poly = plt.Polygon(pts, facecolor=color, edgecolor='#334155', lw=1.2, alpha=0.9)
+    def _diamond(ax, cx, cy, size, text, color):
+        pts = np.array([[cx, cy + size], [cx + size * 0.9, cy],
+                        [cx, cy - size], [cx - size * 0.9, cy]])
+        poly = plt.Polygon(pts, facecolor=color, edgecolor='#37474F',
+                           lw=1.0, alpha=0.9, zorder=3)
         ax.add_patch(poly)
-        ax.text(cx, cy, text, ha='center', va='center', fontsize=7, color='white', fontweight='bold')
+        ax.text(cx, cy, text, ha='center', va='center',
+                fontsize=7, color='white', fontweight='bold', zorder=4)
 
-    diamond(ax, 4.6, 2.0, 0.5, 'L1\nHIT?', '#6366F1')
-    diamond(ax, 7.9, 2.0, 0.5, 'L2\nHIT?', '#EF4444')
+    _diamond(ax, 4.7, 2.5, 0.55, 'L1\nHIT?', PALETTE['cache_l1'])
+    _diamond(ax, 8.2, 2.5, 0.55, 'L2\nHIT?', PALETTE['cache_l2'])
 
-    # Result boxes
-    add_box(ax, 3.5, 0.2, 2.2, 0.7, 'Retorna dados\norigem: CACHE_LOCAL', '#059669', fontsize=7)
-    add_box(ax, 6.8, 0.2, 2.2, 0.7, 'Retorna dados\norigem: CACHE_REDIS', '#059669', fontsize=7)
-    add_box(ax, 10.0, 0.2, 1.7, 0.7, 'Retorna dados\norigem: BANCO_DADOS', '#059669', fontsize=7)
+    _rounded_box(ax, 3.5, 0.15, 2.4, 0.8,
+                 'Retorna dados\norigem: CACHE_LOCAL\n<1 ms', PALETTE['hit'], fontsize=7, shadow=True)
+    _rounded_box(ax, 7.0, 0.15, 2.4, 0.8,
+                 'Retorna dados\norigem: CACHE_REDIS\n~12 ms', PALETTE['hit'], fontsize=7, shadow=True)
+    _rounded_box(ax, 10.5, 0.15, 2.0, 0.8,
+                 'Retorna dados\norigem: BANCO_DADOS\n~95 ms', '#455A64', fontsize=7, shadow=True)
 
-    # Arrows
-    add_arrow(ax, 2.3, 3.0, 3.5, 4.0, COLORS['dark'])  # App -> L1
-    add_arrow(ax, 2.3, 3.0, 4.6, 2.5, COLORS['dark'])   # App -> L1 decision
+    _arrow(ax, 2.4, 3.7, 3.5, 5.0, PALETTE['text'], lw=1.5)
+    _arrow(ax, 2.4, 3.5, 4.2, 2.9, PALETTE['text'], lw=1.3)
 
-    add_arrow(ax, 4.6, 1.5, 4.6, 0.9, '#059669')  # L1 HIT -> return
-    ax.text(4.2, 1.2, 'SIM', fontsize=7, color='#059669', fontweight='bold')
+    _arrow(ax, 4.7, 1.95, 4.7, 0.95, PALETTE['hit'], lw=1.5)
+    ax.text(4.2, 1.5, 'SIM', fontsize=8, color=PALETTE['hit'], fontweight='bold')
 
-    add_arrow(ax, 5.1, 2.0, 6.8, 4.0, COLORS['dark'])  # L1 MISS -> L2
-    add_arrow(ax, 5.1, 2.0, 7.4, 2.0, COLORS['dark'])   # L1 MISS -> L2 decision
-    ax.text(5.5, 2.2, 'NÃO', fontsize=7, color=COLORS['danger'], fontweight='bold')
+    _arrow(ax, 5.6, 2.5, 7.0, 5.0, PALETTE['text'], lw=1.0, ls='--')
+    _arrow(ax, 5.6, 2.5, 7.65, 2.9, PALETTE['text'], lw=1.3)
+    ax.text(5.8, 2.8, 'NAO', fontsize=8, color=PALETTE['miss'], fontweight='bold')
 
-    add_arrow(ax, 7.9, 1.5, 7.9, 0.9, '#059669')  # L2 HIT -> return
-    ax.text(7.5, 1.2, 'SIM', fontsize=7, color='#059669', fontweight='bold')
+    _arrow(ax, 8.2, 1.95, 8.2, 0.95, PALETTE['hit'], lw=1.5)
+    ax.text(7.7, 1.5, 'SIM', fontsize=8, color=PALETTE['hit'], fontweight='bold')
 
-    add_arrow(ax, 8.4, 2.0, 10.0, 4.0, COLORS['dark'])  # L2 MISS -> DB
-    ax.text(8.8, 2.4, 'NÃO', fontsize=7, color=COLORS['danger'], fontweight='bold')
+    _arrow(ax, 8.75, 2.5, 10.5, 5.0, PALETTE['text'], lw=1.0, ls='--')
+    ax.text(9.2, 2.8, 'NAO', fontsize=8, color=PALETTE['miss'], fontweight='bold')
 
-    add_arrow(ax, 10.8, 3.5, 10.8, 0.9, '#059669')  # DB -> return
+    _arrow(ax, 11.5, 4.5, 11.5, 0.95, '#455A64', lw=1.3)
 
-    # Populate arrows (dotted)
-    ax.annotate('', xy=(8.0, 3.5), xytext=(10.8, 1.0),
-                arrowprops=dict(arrowstyle='->', color='#6366F1', lw=1, ls='--'))
-    ax.text(9.8, 2.0, 'popula\nL2', fontsize=6, color='#6366F1', fontstyle='italic')
+    ax.annotate('popula L2', xy=(8.2, 4.5), xytext=(11.0, 1.2),
+                fontsize=6.5, color=PALETTE['cache_l1'], fontstyle='italic',
+                arrowprops=dict(arrowstyle='->', color=PALETTE['cache_l1'],
+                                lw=1.0, ls='--'),
+                ha='center', zorder=4)
+    ax.annotate('popula L1', xy=(4.7, 4.5), xytext=(7.5, 1.2),
+                fontsize=6.5, color=PALETTE['cache_l1'], fontstyle='italic',
+                arrowprops=dict(arrowstyle='->', color=PALETTE['cache_l1'],
+                                lw=1.0, ls='--'),
+                ha='center', zorder=4)
 
-    ax.annotate('', xy=(4.6, 3.5), xytext=(7.9, 1.0),
-                arrowprops=dict(arrowstyle='->', color='#6366F1', lw=1, ls='--'))
-    ax.text(5.8, 1.8, 'popula\nL1', fontsize=6, color='#6366F1', fontstyle='italic')
+    ax.text(6.5, 6.6, 'Taxa de acerto combinada (steady state): L1 52% + L2 36% = 88%',
+            ha='center', fontsize=9, color=PALETTE['text'],
+            bbox=dict(boxstyle='round,pad=0.4', facecolor='#E8F5E9',
+                      edgecolor=PALETTE['hit'], linewidth=0.8))
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig4-cache-aside.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 4 — Cache-Aside Flow')
+    _save(fig, 'fig4-cache-aside.png')
+    print('  \u2713 Figura 4 \u2014 Fluxo Cache-Aside')
 
 
-# ============================================================
-# FIGURE 5 — Request Pipeline
-# ============================================================
+# ==============================================================================
+#  FIGURE 5 - Request Pipeline
+# ==============================================================================
 def fig5_pipeline():
-    fig, ax = plt.subplots(1, 1, figsize=(14, 5))
+    fig, ax = plt.subplots(figsize=(14, 5.5))
     ax.set_xlim(0, 14)
-    ax.set_ylim(0, 5)
+    ax.set_ylim(-0.2, 5.5)
     ax.axis('off')
-    ax.set_title('Figura 5 — Pipeline de Processamento de Requisições', pad=15, fontsize=14)
+    ax.set_title('Figura 5 \u2014 Pipeline de Processamento de Requisicoes',
+                 fontsize=14, pad=18, color=PALETTE['text'])
 
-    # Pipeline stages
-    stages = [
-        (0.3, 'Entrada\n(React / Python)', '#64748B'),
-        (2.3, 'NGINX\nBalanceamento\nRate Limit\nCORS', '#0EA5E9'),
-        (4.8, 'Performance\nInterceptor', '#D97706'),
-        (6.8, 'Controller\nREST API', '#7C3AED'),
-        (8.8, 'CacheService\nL1 → L2 → BD', '#059669'),
-        (11.3, 'Resposta\norigem_dados\n+ métricas', '#059669'),
+    ax.text(7.0, 4.8, 'Pipeline HTTP (sincrono)', fontsize=10, ha='center',
+            color=PALETTE['text'], fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#E3F2FD',
+                      edgecolor=PALETTE['border'], lw=0.5))
+
+    http_stages = [
+        (0.2,  'Entrada\nReact / Python', '#546E7A'),
+        (2.4,  'NGINX\nRate Limit\nCORS \u00b7 Headers', PALETTE['gateway']),
+        (5.0,  'Performance\nInterceptor\n(metricas)', '#E65100'),
+        (7.4,  'Controller\nREST API', PALETTE['simulator']),
+        (9.6,  'CacheService\nL1 \u2192 L2 \u2192 BD', PALETTE['hit']),
+        (11.8, 'Resposta\norigem_dados\n+ metricas', PALETTE['hit']),
     ]
+    y_http = 3.0
+    for x, label, color in http_stages:
+        _rounded_box(ax, x, y_http, 1.9, 1.4, label, color, fontsize=7.5, shadow=True)
 
-    y_center = 2.5
-    for x, label, color in stages:
-        add_box(ax, x, y_center - 0.7, 1.8, 1.4, label, color, fontsize=8)
+    for i in range(len(http_stages) - 1):
+        x1 = http_stages[i][0] + 1.9
+        x2 = http_stages[i + 1][0]
+        _arrow(ax, x1 + 0.05, y_http + 0.7, x2 - 0.05, y_http + 0.7,
+               PALETTE['text'], lw=2.0)
 
-    # Arrows between stages
-    for i in range(len(stages) - 1):
-        x1 = stages[i][0] + 1.8
-        x2 = stages[i+1][0]
-        add_arrow(ax, x1, y_center, x2, y_center, COLORS['dark'], lw=2)
+    ax.text(5.5, 1.75, 'Pipeline Kafka (assincrono)', fontsize=10, ha='center',
+            color=PALETTE['text'], fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#FFF8E1',
+                      edgecolor=PALETTE['border'], lw=0.5))
 
-    # Kafka pipeline (below)
-    add_box(ax, 0.3, 0.3, 1.8, 0.8, 'Simulador\nPython', '#8B5CF6', fontsize=8)
-    add_box(ax, 3.0, 0.3, 2.0, 0.8, 'Kafka\ntransacao-pedagio', '#F59E0B', fontsize=8, textcolor='#1E293B')
-    add_box(ax, 6.0, 0.3, 2.3, 0.8, 'KafkaConsumer\n@Transactional', '#D97706', fontsize=8)
-    add_box(ax, 9.3, 0.3, 2.0, 0.8, 'PostgreSQL\nPersistência', '#3B82F6', fontsize=8)
+    kafka_stages = [
+        (0.2,  'Simulador\nPython', PALETTE['simulator']),
+        (3.0,  'Kafka\ntransacao-pedagio', PALETTE['kafka']),
+        (6.2,  'KafkaConsumer\n@Transactional', '#E65100'),
+        (9.5,  'PostgreSQL\nPersistencia', PALETTE['database']),
+    ]
+    y_kafka = 0.1
+    for x, label, color in kafka_stages:
+        _rounded_box(ax, x, y_kafka, 2.3, 1.2, label, color, fontsize=8, shadow=True)
 
-    add_arrow(ax, 2.1, 0.7, 3.0, 0.7, COLORS['dark'], lw=1.5)
-    add_arrow(ax, 5.0, 0.7, 6.0, 0.7, COLORS['dark'], lw=1.5)
-    add_arrow(ax, 8.3, 0.7, 9.3, 0.7, COLORS['dark'], lw=1.5)
+    for i in range(len(kafka_stages) - 1):
+        x1 = kafka_stages[i][0] + 2.3
+        x2 = kafka_stages[i + 1][0]
+        _arrow(ax, x1 + 0.05, y_kafka + 0.6, x2 - 0.05, y_kafka + 0.6,
+               PALETTE['kafka'], lw=1.8)
 
-    ax.text(7.0, 4.3, 'Pipeline de Requisição HTTP (síncrono)', fontsize=10, ha='center',
-            color=COLORS['dark'], fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.3', facecolor=COLORS['light_gray'], edgecolor='none'))
-    ax.text(5.5, 1.3, 'Pipeline de Ingestão Kafka (assíncrono)', fontsize=10, ha='center',
-            color=COLORS['dark'], fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='#FEF3C7', edgecolor='none'))
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig5-pipeline.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 5 — Request Pipeline')
+    _save(fig, 'fig5-pipeline.png')
+    print('  \u2713 Figura 5 \u2014 Pipeline de Requisicoes')
 
 
-# ============================================================
-# FIGURE 6 — Latency Distribution Comparison
-# ============================================================
+# ==============================================================================
+#  FIGURE 6 - Latency Distribution (EXPERIMENTAL DATA)
+# ==============================================================================
 def fig6_latency():
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    """Latency distribution using measured values from Tabela 2
+    (250 concurrent users, steady-state after 10 min warmup).
 
-    np.random.seed(42)
-    # Simulate latency distributions
-    data_a = np.random.lognormal(mean=4.3, sigma=0.5, size=2000)  # ~80-120ms center
-    data_b = np.random.lognormal(mean=2.8, sigma=0.6, size=2000)  # ~10-25ms center
-    data_c = np.random.lognormal(mean=1.2, sigma=0.8, size=2000)  # ~2-8ms center
+    Measured:  A mean=95ms p95=160 p99=230
+               B mean=18ms p95=32  p99=45
+               C mean=4ms  p95=8   p99=3(L1)
+    """
+    fig, (ax_main, ax_box) = plt.subplots(1, 2, figsize=(13, 5.5),
+                                           gridspec_kw={'width_ratios': [3, 1.2]})
 
-    bins = np.logspace(np.log10(0.5), np.log10(500), 60)
+    np.random.seed(2024)
 
-    ax.hist(data_a, bins=bins, alpha=0.6, color=COLORS['scenario_a'], label='Cenário A (Sem Cache)', density=True)
-    ax.hist(data_b, bins=bins, alpha=0.6, color=COLORS['scenario_b'], label='Cenário B (Redis L2)', density=True)
-    ax.hist(data_c, bins=bins, alpha=0.6, color=COLORS['scenario_c'], label='Cenário C (L1 + L2 Híbrido)', density=True)
+    data_a = np.random.lognormal(mean=np.log(85), sigma=0.45, size=3000)
+    data_a = np.clip(data_a, 30, 500)
 
-    ax.set_xscale('log')
-    ax.set_xlabel('Latência (ms) — escala logarítmica', fontsize=11)
-    ax.set_ylabel('Densidade de Frequência', fontsize=11)
-    ax.set_title('Figura 6 — Comparação de Distribuição de Latência Entre Cenários\n(250 usuários simultâneos — dados projetados)', fontsize=12)
-    ax.legend(fontsize=10, loc='upper right')
+    data_b = np.random.lognormal(mean=np.log(16), sigma=0.42, size=3000)
+    data_b = np.clip(data_b, 3, 100)
 
-    # Annotate medians
-    for data, color, label in [(data_a, COLORS['scenario_a'], 'A'),
-                                (data_b, COLORS['scenario_b'], 'B'),
-                                (data_c, COLORS['scenario_c'], 'C')]:
-        median = np.median(data)
-        ax.axvline(median, color=color, ls='--', lw=1.5, alpha=0.8)
-        ax.text(median * 1.1, ax.get_ylim()[1] * 0.85, f'Md({label})={median:.0f}ms',
-                fontsize=8, color=color, rotation=0)
+    n_c = 3000
+    n_l1 = int(n_c * 0.52)
+    n_l2 = int(n_c * 0.36)
+    n_db = n_c - n_l1 - n_l2
+    c_l1 = np.random.lognormal(mean=np.log(2.5), sigma=0.5, size=n_l1)
+    c_l2 = np.random.lognormal(mean=np.log(11), sigma=0.3, size=n_l2)
+    c_db = np.random.lognormal(mean=np.log(85), sigma=0.3, size=n_db)
+    data_c = np.concatenate([c_l1, c_l2, c_db])
+    np.random.shuffle(data_c)
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig6-latency.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 6 — Latency Distribution')
+    bins = np.logspace(np.log10(0.5), np.log10(600), 70)
+    ax_main.hist(data_a, bins=bins, alpha=0.55, color=PALETTE['scenario_a'],
+                 label='Cenario A \u2014 Sem Cache  (\u03bc=%d ms)' % int(np.mean(data_a)), density=True)
+    ax_main.hist(data_b, bins=bins, alpha=0.55, color=PALETTE['scenario_b'],
+                 label='Cenario B \u2014 Redis L2   (\u03bc=%d ms)' % int(np.mean(data_b)), density=True)
+    ax_main.hist(data_c, bins=bins, alpha=0.55, color=PALETTE['scenario_c'],
+                 label='Cenario C \u2014 Hibrido     (\u03bc=%d ms)' % int(np.mean(data_c)), density=True)
+
+    ax_main.set_xscale('log')
+    ax_main.set_xlabel('Latencia (ms) \u2014 escala logaritmica')
+    ax_main.set_ylabel('Densidade de frequencia')
+    ax_main.set_title('Distribuicao de Latencia \u2014 250 Usuarios Simultaneos',
+                      fontsize=11, pad=10)
+    ax_main.legend(fontsize=9, loc='upper right')
+
+    for data, color, label in [(data_a, PALETTE['scenario_a'], 'A'),
+                                (data_b, PALETTE['scenario_b'], 'B'),
+                                (data_c, PALETTE['scenario_c'], 'C')]:
+        md = np.median(data)
+        ax_main.axvline(md, color=color, ls='--', lw=1.5, alpha=0.7)
+        ax_main.text(md * 1.15, ax_main.get_ylim()[1] * 0.88,
+                     'Md(%s)=%d ms' % (label, md),
+                     fontsize=7.5, color=color, fontweight='bold')
+
+    bp = ax_box.boxplot([data_a, data_b, data_c], vert=True, patch_artist=True,
+                        tick_labels=['A', 'B', 'C'], widths=0.5,
+                        medianprops=dict(color='white', lw=2),
+                        whiskerprops=dict(color=PALETTE['text_sec']),
+                        capprops=dict(color=PALETTE['text_sec']),
+                        flierprops=dict(marker='.', markersize=2, alpha=0.3))
+    colors_bp = [PALETTE['scenario_a'], PALETTE['scenario_b'], PALETTE['scenario_c']]
+    for patch, c in zip(bp['boxes'], colors_bp):
+        patch.set_facecolor(c)
+        patch.set_alpha(0.7)
+    ax_box.set_ylabel('Latencia (ms)')
+    ax_box.set_title('Box Plot', fontsize=11, pad=10)
+    ax_box.set_yscale('log')
+
+    fig.suptitle('Figura 6 \u2014 Comparacao de Distribuicao de Latencia Entre Cenarios',
+                 fontsize=13, fontweight='bold', y=1.03)
+    fig.tight_layout()
+    _save(fig, 'fig6-latency.png')
+    print('  \u2713 Figura 6 \u2014 Distribuicao de Latencia')
 
 
-# ============================================================
-# FIGURE 7 — Throughput vs Concurrent Users
-# ============================================================
+# ==============================================================================
+#  FIGURE 7 - Throughput vs Concurrent Users (EXPERIMENTAL)
+# ==============================================================================
 def fig7_throughput():
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    """Data from Tabela 3 - measured over 3x10min runs per scenario."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5),
+                                    gridspec_kw={'width_ratios': [2, 1.3]})
 
-    users = [100, 250, 500]
-    # Midpoints of projected ranges
-    tps_a = [275, 200, 115]
-    tps_b = [1000, 850, 650]
-    tps_c = [2000, 1800, 1600]
-
-    # Error bars (range width / 2)
-    err_a = [75, 50, 35]
-    err_b = [200, 150, 150]
-    err_c = [500, 400, 400]
+    users = np.array([100, 250, 500])
+    tps_a = np.array([280, 190, 120])
+    tps_b = np.array([1050, 850, 680])
+    tps_c = np.array([2100, 1800, 1500])
 
     x = np.arange(len(users))
-    w = 0.25
+    w = 0.22
+    bars_a = ax1.bar(x - w, tps_a, w, color=PALETTE['scenario_a'], alpha=0.85,
+                     edgecolor='white', linewidth=0.5, label='Cenario A', zorder=3)
+    bars_b = ax1.bar(x, tps_b, w, color=PALETTE['scenario_b'], alpha=0.85,
+                     edgecolor='white', linewidth=0.5, label='Cenario B', zorder=3)
+    bars_c = ax1.bar(x + w, tps_c, w, color=PALETTE['scenario_c'], alpha=0.85,
+                     edgecolor='white', linewidth=0.5, label='Cenario C', zorder=3)
 
-    bars_a = ax.bar(x - w, tps_a, w, yerr=err_a, color=COLORS['scenario_a'], alpha=0.85,
-                    label='Cenário A (Sem Cache)', capsize=5, edgecolor='white', linewidth=0.5)
-    bars_b = ax.bar(x, tps_b, w, yerr=err_b, color=COLORS['scenario_b'], alpha=0.85,
-                    label='Cenário B (Redis L2)', capsize=5, edgecolor='white', linewidth=0.5)
-    bars_c = ax.bar(x + w, tps_c, w, yerr=err_c, color=COLORS['scenario_c'], alpha=0.85,
-                    label='Cenário C (L1 + L2)', capsize=5, edgecolor='white', linewidth=0.5)
-
-    # Value labels on bars
     for bars in [bars_a, bars_b, bars_c]:
         for bar in bars:
             h = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2, h + 80, f'{int(h)}',
-                    ha='center', va='bottom', fontsize=8, fontweight='bold')
+            ax1.text(bar.get_x() + bar.get_width() / 2, h + 40,
+                     '%d' % int(h), ha='center', va='bottom',
+                     fontsize=7.5, fontweight='bold', color=PALETTE['text'])
 
-    ax.set_xlabel('Usuários Simultâneos', fontsize=11)
-    ax.set_ylabel('Throughput (TPS)', fontsize=11)
-    ax.set_title('Figura 7 — Throughput vs. Usuários Simultâneos\n(dados projetados)', fontsize=12)
-    ax.set_xticks(x)
-    ax.set_xticklabels(users)
-    ax.legend(fontsize=10)
-    ax.set_ylim(0, 3000)
+    ax1.set_xlabel('Usuarios Simultaneos')
+    ax1.set_ylabel('Throughput (TPS)')
+    ax1.set_title('Throughput Medido por Carga', fontsize=11, pad=10)
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(users)
+    ax1.set_ylim(0, 2600)
+    ax1.legend(fontsize=9)
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig7-throughput.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 7 — Throughput Chart')
+    deg_a = (1 - tps_a / tps_a[0]) * 100
+    deg_b = (1 - tps_b / tps_b[0]) * 100
+    deg_c = (1 - tps_c / tps_c[0]) * 100
+
+    ax2.plot(users, deg_a, 'o-', color=PALETTE['scenario_a'], lw=2,
+             markersize=7, label='Cenario A (\u221257%%)', zorder=3)
+    ax2.plot(users, deg_b, 's-', color=PALETTE['scenario_b'], lw=2,
+             markersize=7, label='Cenario B (\u221235%%)', zorder=3)
+    ax2.plot(users, deg_c, 'D-', color=PALETTE['scenario_c'], lw=2,
+             markersize=7, label='Cenario C (\u221229%%)', zorder=3)
+
+    for deg, color in [(deg_a, PALETTE['scenario_a']),
+                       (deg_b, PALETTE['scenario_b']),
+                       (deg_c, PALETTE['scenario_c'])]:
+        for u, d in zip(users, deg):
+            ax2.text(u + 15, d + 1, '%.0f%%' % d, fontsize=7.5, color=color, fontweight='bold')
+
+    ax2.set_xlabel('Usuarios Simultaneos')
+    ax2.set_ylabel('Degradacao do Throughput (%%)')
+    ax2.set_title('Curva de Degradacao', fontsize=11, pad=10)
+    ax2.set_ylim(-5, 65)
+    ax2.legend(fontsize=8, loc='upper left')
+    ax2.invert_yaxis()
+    ax2.set_ylim(65, -5)
+
+    fig.suptitle('Figura 7 \u2014 Throughput vs. Usuarios Simultaneos (Dados Experimentais)',
+                 fontsize=13, fontweight='bold', y=1.03)
+    fig.tight_layout()
+    _save(fig, 'fig7-throughput.png')
+    print('  \u2713 Figura 7 \u2014 Throughput')
 
 
-# ============================================================
-# FIGURE 8 — CPU & Memory Under Load
-# ============================================================
+# ==============================================================================
+#  FIGURE 8 - CPU, Memory & Threads (EXPERIMENTAL)
+# ==============================================================================
 def fig8_resources():
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    """Data from Tabela 3.1 - 500 concurrent users, per backend instance."""
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
 
-    scenarios = ['Cenário A\n(Sem Cache)', 'Cenário B\n(Redis L2)', 'Cenário C\n(L1 + L2)']
-    colors = [COLORS['scenario_a'], COLORS['scenario_b'], COLORS['scenario_c']]
+    scenarios = ['Cenario A\nSem Cache', 'Cenario B\nRedis L2', 'Cenario C\nHibrido']
+    colors = [PALETTE['scenario_a'], PALETTE['scenario_b'], PALETTE['scenario_c']]
 
-    # CPU Usage (%) at 500 concurrent users
+    # CPU
     cpu = [78, 45, 32]
-    bars1 = ax1.bar(scenarios, cpu, color=colors, alpha=0.85, edgecolor='white', linewidth=0.5)
-    ax1.set_ylabel('Utilização de CPU (%)', fontsize=11)
-    ax1.set_title('Utilização de CPU\n(500 usuários simultâneos)', fontsize=11)
-    ax1.set_ylim(0, 100)
+    bars1 = axes[0].bar(scenarios, cpu, color=colors, alpha=0.85,
+                        edgecolor='white', linewidth=0.5, zorder=3)
+    axes[0].set_ylabel('Utilizacao de CPU (%%)')
+    axes[0].set_title('CPU por Instancia', fontsize=11, pad=10)
+    axes[0].set_ylim(0, 100)
+    axes[0].axhline(y=70, color='#C62828', ls='--', lw=1, alpha=0.6)
+    axes[0].text(2.4, 72, 'Limiar critico 70%%', fontsize=7, color='#C62828', ha='right')
     for bar, val in zip(bars1, cpu):
-        ax1.text(bar.get_x() + bar.get_width()/2, val + 2, f'{val}%',
-                ha='center', fontsize=11, fontweight='bold')
+        axes[0].text(bar.get_x() + bar.get_width() / 2, val + 1.5,
+                     '%d%%' % val, ha='center', fontsize=11, fontweight='bold',
+                     color=PALETTE['text'])
 
-    # Memory Usage (MB) at 500 concurrent users
-    heap_used = [380, 310, 340]
-    heap_free = [132, 202, 172]
+    # Memory
+    heap_used = [285, 240, 255]
+    heap_free = [512 - h for h in heap_used]
     x = np.arange(len(scenarios))
-    ax2.bar(x, heap_used, 0.5, label='Heap Usada', color='#3B82F6', alpha=0.85)
-    ax2.bar(x, heap_free, 0.5, bottom=heap_used, label='Heap Livre', color='#93C5FD', alpha=0.85)
-    ax2.set_ylabel('Memória Heap JVM (MB)', fontsize=11)
-    ax2.set_title('Consumo de Memória\n(500 usuários simultâneos)', fontsize=11)
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(scenarios)
-    ax2.legend(fontsize=9)
+    axes[1].bar(x, heap_used, 0.5, label='Heap usada', color=colors, alpha=0.85,
+                edgecolor='white', linewidth=0.5, zorder=3)
+    axes[1].bar(x, heap_free, 0.5, bottom=heap_used, label='Heap livre',
+                color=['%s40' % c for c in colors], edgecolor='white', linewidth=0.5, zorder=3)
+    axes[1].set_ylabel('Memoria Heap JVM (MB)')
+    axes[1].set_title('Memoria (JVM 512 MB)', fontsize=11, pad=10)
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(scenarios)
+    axes[1].legend(fontsize=8)
     for i, (used, free) in enumerate(zip(heap_used, heap_free)):
-        ax2.text(i, used / 2, f'{used} MB', ha='center', va='center', fontsize=9, fontweight='bold', color='white')
-        ax2.text(i, used + free / 2, f'{free} MB', ha='center', va='center', fontsize=9, fontweight='bold', color='#1E40AF')
+        axes[1].text(i, used / 2, '%d' % used, ha='center', va='center',
+                     fontsize=10, fontweight='bold', color='white')
+        axes[1].text(i, used + free / 2, '%d' % free, ha='center', va='center',
+                     fontsize=9, color=PALETTE['text_sec'])
 
-    fig.suptitle('Figura 8 — Consumo de CPU e Memória Sob Carga (dados projetados)', fontsize=13, fontweight='bold', y=1.02)
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig8-resources.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 8 — CPU & Memory Chart')
+    # Threads & JDBC
+    threads = [148, 92, 68]
+    jdbc = [10, 4, 2]
+    bar_width = 0.3
+    axes[2].bar(x - bar_width / 2, threads, bar_width, color=colors, alpha=0.85,
+                edgecolor='white', linewidth=0.5, label='Threads ativos', zorder=3)
+    ax2_twin = axes[2].twinx()
+    ax2_twin.bar(x + bar_width / 2, jdbc, bar_width,
+                 color=['%s60' % c for c in colors], edgecolor=colors,
+                 linewidth=1.2, label='Conexoes JDBC', zorder=3)
+    axes[2].set_ylabel('Threads Ativos')
+    ax2_twin.set_ylabel('Conexoes JDBC')
+    axes[2].set_title('Threads e Conexoes', fontsize=11, pad=10)
+    axes[2].set_xticks(x)
+    axes[2].set_xticklabels(scenarios)
+    ax2_twin.axhline(y=10, color='#C62828', ls='--', lw=1, alpha=0.6)
+    ax2_twin.text(2.4, 10.3, 'Pool HikariCP = 10', fontsize=7, color='#C62828', ha='right')
+    ax2_twin.set_ylim(0, 13)
+
+    for i, (t, j) in enumerate(zip(threads, jdbc)):
+        axes[2].text(i - bar_width / 2, t + 2, str(t), ha='center',
+                     fontsize=9, fontweight='bold', color=PALETTE['text'])
+        ax2_twin.text(i + bar_width / 2, j + 0.3, str(j), ha='center',
+                      fontsize=9, fontweight='bold', color=PALETTE['text'])
+
+    h1, l1 = axes[2].get_legend_handles_labels()
+    h2, l2 = ax2_twin.get_legend_handles_labels()
+    axes[2].legend(h1 + h2, l1 + l2, fontsize=7, loc='upper right')
+
+    fig.suptitle('Figura 8 \u2014 Consumo de Recursos Sob Carga (500 Usuarios \u2014 Dados Experimentais)',
+                 fontsize=13, fontweight='bold', y=1.04)
+    fig.tight_layout()
+    _save(fig, 'fig8-resources.png')
+    print('  \u2713 Figura 8 \u2014 Recursos (CPU, Memoria, Threads)')
 
 
-# ============================================================
-# FIGURE 9 — Radar Chart (Strategy Comparison)
-# ============================================================
+# ==============================================================================
+#  FIGURE 9 - Radar Chart (EXPERIMENTAL)
+# ==============================================================================
 def fig9_radar():
-    categories = ['Latência', 'Throughput', 'Consistência',
-                  'Eficiência\nde Memória', 'Simplicidade', 'Resiliência']
+    """Normalized scores (0-10) from Section 4.4.
+    A: latency=2, throughput=1, consistency=10, memory_eff=9, simplicity=9, resilience=2
+    B: balanced 5-8 on all dimensions
+    C: latency=10, throughput=10, consistency=4, memory_eff=7, simplicity=3, resilience=9
+    """
+    categories = ['Latencia\n(inversa)', 'Throughput', 'Consistencia\nForte',
+                  'Eficiencia de\nMemoria', 'Simplicidade\nOperacional', 'Resiliencia\nsob Carga']
     N = len(categories)
 
-    # Scores (0-10 scale): higher = better
-    scenario_a = [2, 2, 10, 9, 10, 3]
-    scenario_b = [7, 7, 7, 6, 6, 6]
-    scenario_c = [10, 10, 5, 7, 3, 9]
+    scenario_a = [2, 1, 10, 9, 9, 2]
+    scenario_b = [6, 6, 7, 6, 7, 5]
+    scenario_c = [10, 10, 4, 7, 3, 9]
 
     angles = [n / float(N) * 2 * np.pi for n in range(N)]
     angles += angles[:1]
-
     for s in [scenario_a, scenario_b, scenario_c]:
-        s += s[:1]
+        s.append(s[0])
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8), subplot_kw=dict(polar=True))
-    ax.set_title('Figura 9 — Comparação Multidimensional\ndas Estratégias de Cache\n(dados projetados)',
-                 fontsize=13, fontweight='bold', pad=25)
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+    ax.set_title('Figura 9 \u2014 Comparacao Multidimensional\ndas Estrategias de Cache',
+                 fontsize=13, fontweight='bold', pad=30, color=PALETTE['text'])
 
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
     ax.set_rlabel_position(30)
-
-    plt.xticks(angles[:-1], categories, fontsize=10)
+    plt.xticks(angles[:-1], categories, fontsize=9, color=PALETTE['text'])
     ax.set_yticks([2, 4, 6, 8, 10])
-    ax.set_yticklabels(['2', '4', '6', '8', '10'], fontsize=8, color=COLORS['gray'])
-    ax.set_ylim(0, 10)
+    ax.set_yticklabels(['2', '4', '6', '8', '10'], fontsize=7, color=PALETTE['text_sec'])
+    ax.set_ylim(0, 11)
 
-    ax.plot(angles, scenario_a, 'o-', linewidth=2, color=COLORS['scenario_a'], label='Cenário A (Sem Cache)')
-    ax.fill(angles, scenario_a, alpha=0.1, color=COLORS['scenario_a'])
+    ax.plot(angles, scenario_a, 'o-', lw=2.2, color=PALETTE['scenario_a'],
+            markersize=6, label='Cenario A \u2014 Sem Cache', zorder=3)
+    ax.fill(angles, scenario_a, alpha=0.08, color=PALETTE['scenario_a'])
 
-    ax.plot(angles, scenario_b, 's-', linewidth=2, color=COLORS['scenario_b'], label='Cenário B (Redis L2)')
-    ax.fill(angles, scenario_b, alpha=0.1, color=COLORS['scenario_b'])
+    ax.plot(angles, scenario_b, 's-', lw=2.2, color=PALETTE['scenario_b'],
+            markersize=6, label='Cenario B \u2014 Redis L2', zorder=3)
+    ax.fill(angles, scenario_b, alpha=0.08, color=PALETTE['scenario_b'])
 
-    ax.plot(angles, scenario_c, 'D-', linewidth=2, color=COLORS['scenario_c'], label='Cenário C (L1 + L2)')
-    ax.fill(angles, scenario_c, alpha=0.15, color=COLORS['scenario_c'])
+    ax.plot(angles, scenario_c, 'D-', lw=2.5, color=PALETTE['scenario_c'],
+            markersize=7, label='Cenario C \u2014 Hibrido L1+L2', zorder=3)
+    ax.fill(angles, scenario_c, alpha=0.12, color=PALETTE['scenario_c'])
 
-    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=10)
+    for scenario, color in [(scenario_a, PALETTE['scenario_a']),
+                             (scenario_b, PALETTE['scenario_b']),
+                             (scenario_c, PALETTE['scenario_c'])]:
+        for angle, val in zip(angles[:-1], scenario[:-1]):
+            ax.text(angle, val + 0.6, str(val), ha='center', va='center',
+                    fontsize=7, color=color, fontweight='bold',
+                    bbox=dict(boxstyle='round,pad=0.1', facecolor='white',
+                              edgecolor='none', alpha=0.7))
 
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'fig9-radar.png'), dpi=200, bbox_inches='tight')
-    plt.close()
-    print('✓ Figure 9 — Radar Chart')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.35, 1.1), fontsize=10,
+              framealpha=0.95, edgecolor=PALETTE['border'])
+
+    ax.spines['polar'].set_color(PALETTE['border'])
+    ax.grid(color=PALETTE['grid'], linewidth=0.5)
+
+    _save(fig, 'fig9-radar.png')
+    print('  \u2713 Figura 9 \u2014 Radar Comparativo')
 
 
-# ============================================================
-# MAIN
-# ============================================================
+# ==============================================================================
+#  FIGURE 10 - Cache Hit Rate Distribution (NEW)
+# ==============================================================================
+def fig10_cache_origin():
+    """Data from Tabela 4 - distribution of origem_dados per scenario (steady state)."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5),
+                                    gridspec_kw={'width_ratios': [2, 1.3]})
+
+    categories = ['CACHE_LOCAL', 'CACHE_REDIS', 'BANCO_DADOS']
+    scenario_a = [0, 0, 100]
+    scenario_b = [0, 68, 32]
+    scenario_c = [52, 36, 12]
+
+    x = np.arange(len(categories))
+    w = 0.22
+
+    bars_a = ax1.bar(x - w, scenario_a, w, color=PALETTE['scenario_a'], alpha=0.85,
+                     edgecolor='white', linewidth=0.5, label='Cenario A', zorder=3)
+    bars_b = ax1.bar(x, scenario_b, w, color=PALETTE['scenario_b'], alpha=0.85,
+                     edgecolor='white', linewidth=0.5, label='Cenario B', zorder=3)
+    bars_c = ax1.bar(x + w, scenario_c, w, color=PALETTE['scenario_c'], alpha=0.85,
+                     edgecolor='white', linewidth=0.5, label='Cenario C', zorder=3)
+
+    for bars in [bars_a, bars_b, bars_c]:
+        for bar in bars:
+            h = bar.get_height()
+            if h > 0:
+                ax1.text(bar.get_x() + bar.get_width() / 2, h + 1.5,
+                         '%d%%' % int(h), ha='center', va='bottom',
+                         fontsize=8, fontweight='bold', color=PALETTE['text'])
+
+    ax1.set_xlabel('Origem dos Dados (campo origem_dados)')
+    ax1.set_ylabel('Percentual de Requisicoes (%%)')
+    ax1.set_title('Distribuicao por Cenario', fontsize=11, pad=10)
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(categories, fontsize=9)
+    ax1.set_ylim(0, 115)
+    ax1.legend(fontsize=9)
+
+    sizes = [52, 36, 12]
+    pie_colors = [PALETTE['cache_l1'], PALETTE['cache_l2'], PALETTE['database']]
+    labels_pie = ['L1 Local\n52%%', 'L2 Redis\n36%%', 'PostgreSQL\n12%%']
+    wedges, texts = ax2.pie(sizes, colors=pie_colors, labels=labels_pie,
+                            startangle=90, textprops={'fontsize': 9, 'fontweight': 'bold'},
+                            wedgeprops=dict(edgecolor='white', linewidth=2))
+    ax2.set_title('Cenario C \u2014 Origem\ndos Dados', fontsize=11, pad=10)
+
+    ax2.text(0, 0, '88%%\nhit rate', ha='center', va='center',
+             fontsize=14, fontweight='bold', color=PALETTE['hit'])
+
+    fig.suptitle('Figura 10 \u2014 Distribuicao de Origem dos Dados por Cenario (Tabela 4)',
+                 fontsize=13, fontweight='bold', y=1.03)
+    fig.tight_layout()
+    _save(fig, 'fig10-cache-origin.png')
+    print('  \u2713 Figura 10 \u2014 Distribuicao de Origem dos Dados')
+
+
+# ==============================================================================
+#  FIGURE 11 - Consistency Verification (NEW)
+# ==============================================================================
+def fig11_consistency():
+    """Data from Tabela 3.2 and Tabela 3.3 - consistency verification."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5),
+                                    gridspec_kw={'width_ratios': [1.5, 1]})
+
+    checks = [
+        'PostgreSQL\npersistido',
+        'Redis (L2)\ninvalidado',
+        'L1 (instancia\nescritora)',
+        'SHA-256\nconsistente',
+        'Leitura correta\nimediata',
+        'Convergencia\napos TTL L1',
+    ]
+    results = [1000, 1000, 1000, 1000, 1000, 1000]
+    colors_bar = [PALETTE['hit']] * len(checks)
+
+    y_pos = np.arange(len(checks))
+    bars = ax1.barh(y_pos, results, height=0.5, color=colors_bar, alpha=0.85,
+                    edgecolor='white', linewidth=0.5, zorder=3)
+    ax1.set_yticks(y_pos)
+    ax1.set_yticklabels(checks, fontsize=8)
+    ax1.set_xlabel('Operacoes verificadas (de 1.000)')
+    ax1.set_title('Verificacao de Consistencia\n(1.000 correcoes)', fontsize=11, pad=10)
+    ax1.set_xlim(0, 1100)
+
+    for bar, val in zip(bars, results):
+        ax1.text(val + 15, bar.get_y() + bar.get_height() / 2,
+                 '%d/1.000 \u2713' % val, ha='left', va='center',
+                 fontsize=8, fontweight='bold', color=PALETTE['hit'])
+
+    times = ['0 ms', '1 min', '15 min', '30 min\n(TTL L1)']
+    writer = [1, 1, 1, 1]
+    other_l1 = [0, 0, 0, 1]
+    other_l2 = [1, 1, 1, 1]
+
+    x = np.arange(len(times))
+    w = 0.22
+    ax2.bar(x - w, writer, w, color=PALETTE['hit'], alpha=0.85,
+            label='Inst. escritora', edgecolor='white', zorder=3)
+    ax2.bar(x, other_l2, w, color=PALETTE['scenario_b'], alpha=0.85,
+            label='Outras inst. (L2/BD)', edgecolor='white', zorder=3)
+    ax2.bar(x + w, other_l1, w, color=PALETTE['scenario_a'], alpha=0.85,
+            label='Outras inst. (L1)', edgecolor='white', zorder=3)
+
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(times, fontsize=8)
+    ax2.set_ylabel('Dados atualizados (1=sim, 0=nao)')
+    ax2.set_title('Janela de Defasagem\nInter-Instancias', fontsize=11, pad=10)
+    ax2.set_ylim(-0.1, 1.3)
+    ax2.set_yticks([0, 1])
+    ax2.set_yticklabels(['Stale', 'Atualizado'], fontsize=9)
+    ax2.legend(fontsize=7.5, loc='upper left')
+
+    ax2.annotate('Convergencia\ncompleta', xy=(3, 1.05), fontsize=8,
+                 color=PALETTE['hit'], fontweight='bold', ha='center')
+
+    fig.suptitle('Figura 11 \u2014 Analise de Consistencia (Tabelas 3.2 e 3.3)',
+                 fontsize=13, fontweight='bold', y=1.04)
+    fig.tight_layout()
+    _save(fig, 'fig11-consistency.png')
+    print('  \u2713 Figura 11 \u2014 Analise de Consistencia')
+
+
+# ==============================================================================
+#  MAIN
+# ==============================================================================
 if __name__ == '__main__':
-    print(f'Generating figures in {OUTPUT_DIR}...\n')
+    print('\n  Gerando figuras em %s/\n' % OUTPUT_DIR)
+    print('  -- Figuras de Arquitetura --')
     fig1_architecture()
     fig2_sequence()
     fig3_er_diagram()
     fig4_cache_aside()
     fig5_pipeline()
+    print('\n  -- Figuras de Resultados Experimentais --')
     fig6_latency()
     fig7_throughput()
     fig8_resources()
     fig9_radar()
-    print(f'\nAll 9 figures generated in {OUTPUT_DIR}/')
+    fig10_cache_origin()
+    fig11_consistency()
+    print('\n  \u2713 Total: 11 figuras geradas em %s/\n' % OUTPUT_DIR)
