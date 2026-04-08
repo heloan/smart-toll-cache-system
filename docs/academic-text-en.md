@@ -307,13 +307,17 @@ The entire environment is containerized using Docker Compose, orchestrating 10 s
 
 The proposed architecture is grounded in component decoupling to ensure horizontal scalability. As illustrated in Figure 1, requests originating from the frontend or the simulator are intercepted by NGINX, which distributes them among backend instances.
 
-**[Figure 1 — High-Level System Architecture Diagram]**
+**Figure 1 — High-Level System Architecture Diagram**
+
+![Figure 1 — System Architecture](assets/fig1-architecture.png)
 
 *The diagram depicts the client layer (React frontend and Python toll simulator), the gateway layer (NGINX on port 80), the application layer (three Spring Boot instances, each with an L1 in-app ConcurrentHashMap cache, running on port 9080 and consuming from Kafka), and the data layer (Redis L2 cache and PostgreSQL SSOT). The toll simulator communicates with Kafka asynchronously, while Kafka consumers in each backend instance persist transactions to PostgreSQL. Prometheus scrapes all three backend instances, and Grafana renders observability dashboards.*
 
 The logic for processing a transaction correction follows a layered data availability verification flow, detailed in Figure 2.
 
-**[Figure 2 — UML Sequence Diagram: Transaction Correction with Cache-Aside]**
+**Figure 2 — UML Sequence Diagram: Transaction Correction with Cache-Aside**
+
+![Figure 2 — Sequence Diagram](assets/fig2-sequence.png)
 
 *The diagram represents the interaction sequence: the operator's request arrives at NGINX, which forwards it to one of the backend instances via round-robin. The instance first checks the L1 in-app ConcurrentHashMap cache. On an L1 miss, it checks the L2 Redis cache via `RedisTemplate<String, Object>`. On an L2 miss, it queries PostgreSQL, then populates both L2 (Redis) and L1 (ConcurrentHashMap) before returning the response to the client. Each data access records an `origem_dados` attribute (`CACHE_LOCAL`, `CACHE_REDIS`, or `BANCO_DADOS`).*
 
@@ -321,7 +325,9 @@ The logic for processing a transaction correction follows a layered data availab
 
 The data model was designed to support comprehensive toll transaction management, encompassing the full lifecycle from highway registration through transaction processing and correction. PostgreSQL 15 serves as the persistent storage layer with a normalized relational schema comprising ten tables. Figure 3 presents the complete entity-relationship diagram.
 
-**[Figure 3 — Entity-Relationship Diagram (10 Tables)]**
+**Figure 3 — Entity-Relationship Diagram (10 Tables)**
+
+![Figure 3 — ER Diagram](assets/fig3-er-diagram.png)
 
 *The diagram shows the following entities and their relationships:*
 
@@ -346,7 +352,9 @@ Each toll transaction includes a SHA-256 integrity hash (`hash_integridade`) com
 
 The implementation employs the **Cache-Aside** pattern with a two-layer approach (L1 and L2), as illustrated in Figure 4.
 
-**[Figure 4 — Two-Layer Cache-Aside Strategy Flow]**
+**Figure 4 — Two-Layer Cache-Aside Strategy Flow**
+
+![Figure 4 — Cache-Aside Flow](assets/fig4-cache-aside.png)
 
 *The diagram shows the request flow: Application → check L1 (ConcurrentHashMap) → HIT: return data (origin: `CACHE_LOCAL`) | MISS: check L2 (Redis) → HIT: return data, populate L1 (origin: `CACHE_REDIS`) | MISS: query PostgreSQL → return data, populate L2 and L1 (origin: `BANCO_DADOS`).*
 
@@ -405,7 +413,9 @@ public class CacheService {
 
 The request processing pipeline is optimized to minimize disk I/O. Figure 5 details the complete path traversed by data from ingestion to response.
 
-**[Figure 5 — Request Processing Pipeline]**
+**Figure 5 — Request Processing Pipeline**
+
+![Figure 5 — Request Pipeline](assets/fig5-pipeline.png)
 
 *Flow: Data Entry → NGINX (Load Balancing, Rate Limiting, CORS, Security Headers) → Spring Boot Backend (PerformanceInterceptor → Controller → CacheService → L1/L2/DB) → Response with `origem_dados` tracking.*
 
@@ -486,9 +496,11 @@ In **Scenario B**, the introduction of Redis as the L2 distributed cache is expe
 
 In **Scenario C**, the full hybrid cache architecture adds the L1 ConcurrentHashMap layer, which stores frequently accessed data directly in the JVM heap of each backend instance. For L1 cache hits, the projected p99 latency drops to approximately 1–5 ms, as data retrieval requires no network communication whatsoever — merely a thread-safe hashmap lookup in local memory. The mean latency is expected to stabilize around 2–8 ms, representing an improvement of approximately 95–97% relative to Scenario A.
 
-**[Figure 6 — Latency Distribution Comparison Across Scenarios]**
+**Figure 6 — Latency Distribution Comparison Across Scenarios**
 
-*This figure will present three overlaid histogram or box-plot distributions showing the response time distribution for each scenario at 250 concurrent users. The x-axis represents latency in milliseconds (log scale), and the y-axis represents the frequency of requests. Scenario A is expected to show a wide, right-skewed distribution centered around 80–120 ms; Scenario B, a tighter distribution around 10–25 ms with a secondary peak at ~80 ms for cache misses; and Scenario C, a narrow, left-concentrated distribution below 10 ms.*
+![Figure 6 — Latency Distribution](assets/fig6-latency.png)
+
+*This figure presents three overlaid histogram or box-plot distributions showing the response time distribution for each scenario at 250 concurrent users. The x-axis represents latency in milliseconds (log scale), and the y-axis represents the frequency of requests. Scenario A is expected to show a wide, right-skewed distribution centered around 80–120 ms; Scenario B, a tighter distribution around 10–25 ms with a secondary peak at ~80 ms for cache misses; and Scenario C, a narrow, left-concentrated distribution below 10 ms.*
 
 The latency improvement from Scenario A to Scenario C can be attributed to the elimination of two principal bottlenecks: (i) database connection pool contention, which is entirely bypassed on L1 cache hits; and (ii) network serialization/deserialization overhead to Redis, which is avoided when data resides in the local ConcurrentHashMap.
 
@@ -508,9 +520,11 @@ This section analyzes the expected behavior of the system under progressively in
 
 *Note: TPS projections are based on architectural analysis and typical throughput characteristics of the employed technologies.*
 
-**[Figure 7 — Throughput vs. Concurrent Users]**
+**Figure 7 — Throughput vs. Concurrent Users**
 
-*This figure will present a line chart with three data series (one per scenario) showing throughput (TPS) on the y-axis against the number of concurrent users (100, 250, 500) on the x-axis. Scenario A is expected to show a declining curve as load increases, with a sharp drop beyond 250 users. Scenario B is expected to maintain a flatter profile, while Scenario C is expected to exhibit the highest sustained throughput across all load levels.*
+![Figure 7 — Throughput vs. Concurrent Users](assets/fig7-throughput.png)
+
+*This figure presents a bar chart with three data series (one per scenario) showing throughput (TPS) on the y-axis against the number of concurrent users (100, 250, 500) on the x-axis. Scenario A is expected to show a declining curve as load increases, with a sharp drop beyond 250 users. Scenario B is expected to maintain a flatter profile, while Scenario C is expected to exhibit the highest sustained throughput across all load levels.*
 
 The load balancing provided by NGINX across three backend instances (`toll-management-service-1`, `toll-management-service-2`, `toll-management-service-3`) plays a critical role in preventing single-point bottlenecks. Under the round-robin distribution algorithm, each instance receives approximately one-third of the total request volume. This distribution is expected to result in a near-linear scaling factor of approximately 2.5–2.8x relative to a single-instance deployment, with the sub-linear factor attributed to shared resource contention on PostgreSQL and Redis.
 
@@ -522,9 +536,11 @@ In **Scenario C**, the L1 ConcurrentHashMap further absorbs a substantial portio
 
 **Resource Consumption:**
 
-**[Figure 8 — CPU and Memory Usage Under Load (500 Concurrent Users)]**
+**Figure 8 — CPU and Memory Usage Under Load (500 Concurrent Users)**
 
-*This figure will present a dual-axis chart showing CPU utilization (%) and heap memory consumption (MB) for a single backend instance across the three scenarios at 500 concurrent users. Scenario A is expected to show the highest CPU and memory consumption due to continuous object serialization from database result sets. Scenario C is expected to show moderate memory consumption (due to L1 cache entries) but substantially lower CPU utilization due to reduced database communication.*
+![Figure 8 — CPU and Memory](assets/fig8-resources.png)
+
+*This figure presents comparative charts showing CPU utilization (%) and heap memory consumption (MB) for a single backend instance across the three scenarios at 500 concurrent users. Scenario A is expected to show the highest CPU and memory consumption due to continuous object serialization from database result sets. Scenario C is expected to show moderate memory consumption (due to L1 cache entries) but substantially lower CPU utilization due to reduced database communication.*
 
 Preliminary observations indicate that the memory footprint of the L1 cache in Scenario C is modest: with a maximum of 1,000 CacheEntry objects per instance and typical entry sizes of 1–5 KB, the total L1 memory overhead is estimated at approximately 1–5 MB per instance — well within the typical JVM heap allocation for a Spring Boot application.
 
@@ -600,9 +616,11 @@ This section presents a comprehensive comparison of the three caching approaches
 | Implementation complexity  | Low                   | Moderate              | High                   |
 | Network dependency         | Database only          | Database + Redis      | Reduced (L1 local)     |
 
-**[Figure 9 — Radar Chart: Multi-Dimensional Strategy Comparison]**
+**Figure 9 — Radar Chart: Multi-Dimensional Strategy Comparison**
 
-*This figure will present a radar (spider) chart comparing the three scenarios across six dimensions: latency, throughput, consistency, memory efficiency, complexity, and resilience. Scenario A excels in consistency and simplicity but performs poorly on latency and throughput. Scenario B offers a balanced profile. Scenario C dominates on latency, throughput, and resilience but trades off consistency and complexity.*
+![Figure 9 — Radar Chart](assets/fig9-radar.png)
+
+*This figure presents a radar (spider) chart comparing the three scenarios across six dimensions: latency, throughput, consistency, memory efficiency, complexity, and resilience. Scenario A excels in consistency and simplicity but performs poorly on latency and throughput. Scenario B offers a balanced profile. Scenario C dominates on latency, throughput, and resilience but trades off consistency and complexity.*
 
 **Analysis of Trade-offs:**
 
