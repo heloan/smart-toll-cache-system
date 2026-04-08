@@ -5,21 +5,27 @@ Distributed Architecture with In-Memory Caching and Load Balancing for High-Perf
 
 RESUMO
 
-Este trabalho apresenta o projeto e a avaliação de uma arquitetura distribuída orientada a microserviços, utilizando técnicas de cache em memória, balanceamento de carga e sincronismo entre cache e banco de dados relacional. A solução proposta visa otimizar o desempenho e a escalabilidade de aplicações modernas, mantendo alta disponibilidade e consistência de dados. Foram implementadas e testadas estratégias de cache em múltiplas camadas, bem como o uso de Redis, NGINX, Spring Boot e PostgreSQL. Os resultados indicam ganhos significativos de desempenho e redução de latência, especialmente sob alta demanda.
+Este trabalho apresenta o projeto e a avaliação de uma arquitetura distribuída orientada a microserviços para um sistema de gestão rodoviária com correção de transações de pedágio em tempo real. A solução emprega cache em memória em duas camadas — cache L1 in-app via `ConcurrentHashMap` (TTL 30 min, máximo 1.000 entradas por instância) e cache L2 distribuído via Redis 7 (TTL 60 min, política LRU) — seguindo o padrão Cache-Aside com TTL escalonado para minimizar invalidações simultâneas. O backend foi desenvolvido em Spring Boot 4.0.3 (Java 21), com três instâncias balanceadas por NGINX (round-robin, rate limiting 10 req/s, burst 20), PostgreSQL 15 como Fonte Única da Verdade (SSOT) e Apache Kafka para ingestão assíncrona de transações via tópico `transacao-pedagio`. Um `PerformanceInterceptor` customizado registra métricas de desempenho — tempo de resposta, consumo de memória, uso de CPU e origem dos dados (`CACHE_LOCAL`, `CACHE_REDIS`, `BANCO_DADOS`) — na tabela `registro_performance`. Três cenários experimentais foram definidos: (A) acesso direto ao banco, (B) cache Redis apenas e (C) cache híbrido L1+L2. Os resultados projetados indicam redução de 95–97% na latência, throughput de 1.200–2.000 TPS e taxa de acerto de cache de 85–95% no cenário C, com todo o ambiente orquestrado via Docker Compose (12 serviços) e monitorado por Prometheus e Grafana.
 
-Palavras-chave: sistemas distribuídos, cache em memória, microserviços, Redis, NGINX, sincronismo de dados, alta performance.
+Palavras-chave: cache em memória multicamada, padrão cache-aside, gestão rodoviária, sistemas distribuídos, Redis, NGINX, sincronismo de dados, tempo real flexível.
 
 
 ABSTRACT
 
-This paper presents the design and evaluation of a distributed microservices-based architecture employing in-memory caching techniques, load balancing, and synchronization mechanisms between cache layers and a relational database. The proposed solution is aimed at optimizing the performance and scalability of modern applications while maintaining high availability and data consistency. Multi-layer caching strategies were implemented and evaluated using Redis as a distributed cache, NGINX as a reverse proxy and load balancer, Spring Boot 4.0.3 as the backend framework, and PostgreSQL 15 as the persistent data store. Three experimental scenarios were defined to compare direct database access, Redis-only caching, and a hybrid two-layer caching approach combining in-application ConcurrentHashMap (L1) with Redis (L2). The results indicate significant performance gains and latency reduction, particularly under high-concurrency conditions with up to 500 simultaneous users performing real-time toll transaction corrections.
+This paper presents the design and evaluation of a distributed microservices-based architecture for a toll management system with real-time transaction correction. The solution employs two-layer in-memory caching — in-app L1 cache via `ConcurrentHashMap` (TTL 30 min, max 1,000 entries per instance) and distributed L2 cache via Redis 7 (TTL 60 min, LRU eviction) — following the Cache-Aside pattern with staggered TTL to minimize simultaneous invalidations. The backend was developed in Spring Boot 4.0.3 (Java 21), with three instances load-balanced by NGINX (round-robin, rate limiting at 10 req/s, burst 20), PostgreSQL 15 as the Single Source of Truth (SSOT), and Apache Kafka for asynchronous transaction ingestion via the `transacao-pedagio` topic. A custom `PerformanceInterceptor` records per-request metrics — response time, memory consumption, CPU usage, and data origin (`CACHE_LOCAL`, `CACHE_REDIS`, `BANCO_DADOS`) — to a dedicated `registro_performance` table. Three experimental scenarios were defined: (A) direct database access, (B) Redis-only caching, and (C) hybrid L1+L2 caching. Projected results indicate 95–97% latency reduction, throughput of 1,200–2,000 TPS, and cache hit rates of 85–95% under Scenario C, with the entire environment orchestrated via Docker Compose (12 services) and monitored through Prometheus and Grafana.
 
-Keywords: distributed systems, in-memory cache, microservices, Redis, NGINX, data synchronization, high performance, cache-aside pattern, load balancing.
+Keywords: multi-layer in-memory cache, cache-aside pattern, toll management, distributed systems, Redis, NGINX, data synchronization, soft real-time, high performance.
 
 
 TABLE OF CONTENTS
 
 1 INTRODUCTION ............................................................................. 1
+1.1 Context and Motivation ............................................................... 1
+1.2 Research Problem ........................................................................ 2
+1.3 Proposed Solution ........................................................................ 3
+1.4 Objectives ................................................................................... 4
+1.5 Justification and Relevance .......................................................... 5
+1.6 Document Structure ..................................................................... 5
 
 2 THEORETICAL FOUNDATION ......................................................... 3
 2.1 Data Evolution and Criticality in the Digital Society ...................... 3
@@ -57,6 +63,8 @@ ANNEXES ........................................................................
 
 1. INTRODUCTION
 
+1.1 Context and Motivation
+
 Contemporary society, positioned within the context of Industry 5.0, is characterized by the massive production, processing, and consumption of data on a global scale. This reality transcends the traditional relationship between humans and machines, establishing information as a strategic asset and, in many cases, as a determining factor in the continuity of essential services. Timely access to reliable data now directly influences the success or failure of organizations, economic and financial decision-making, and, in more sensitive contexts, the preservation of human life — as observed in medical applications, government systems, and critical infrastructure.
 
 According to the report *Data Age 2025: The Evolution of Data to Life-Critical*, published by the International Data Corporation (IDC, 2017), the global datasphere was projected to reach approximately 163 zettabytes (ZB) by 2025, highlighting the transition of data from a merely informational resource to a life-critical element. The study estimated that roughly 20% of global data would be classified as critical and approximately 10% as hypercritical — data whose immediate, complete, and reliable access would be decisive for security, health, and sensitive operations.
@@ -69,27 +77,47 @@ Similarly, during the COVID-19 pandemic, numerous government systems faced unpre
 
 Additional examples of critical applications include high-frequency financial trading systems, e-commerce platforms during promotional events, and digital hospital infrastructure, where delays of even a few seconds or availability failures can result in significant economic losses or risks to human life. Across all of these scenarios, it becomes evident that traditional monolithic solutions are insufficient for handling large data volumes, high concurrency, and stringent performance requirements.
 
+1.2 Research Problem
+
 Given this context, the adoption of distributed architectures emerges as a natural response to the challenges imposed by the era of critical and hypercritical data. Architectural models based on microservices enable the decomposition of complex systems into independent services, promoting horizontal scalability, continuous evolution, and reduced impact from isolated failures. However, as these applications become increasingly distributed, new challenges related to data consistency, response latency, and traffic overhead between services and databases inevitably arise.
 
 In this regard, in-memory caching techniques become fundamental components for ensuring performance and resilience. The utilization of cache at different architectural layers — within the application itself, on dedicated external servers such as Redis, or even on the client side — reduces repetitive database access, mitigates bottlenecks, improves user experience, and sustains high request throughput. Strategies such as cache-aside, write-through, and write-behind are widely employed in modern distributed systems to balance performance and consistency.
 
 Studies such as Piskin (2021) demonstrate the significant performance and scalability gains achieved through the adoption of multiple cache layers in distributed architectures, while Shi et al. (2020), with their DistCache proposal, explore advanced load balancing and consistency mechanisms in distributed caches, demonstrating the viability of these solutions even under intense traffic scenarios.
 
-Within this context, this work proposes the analysis and resolution of a real-world scenario in which the rapid, accurate, and reliable response of a system is fundamental to the safe continuity of a critical service. The scenario in question pertains to a toll management system responsible for the real-time correction of toll transactions involving lane users who encountered problems during passage, such as tag evasion, blocked tags, or access to closed lanes.
+This work proposes the analysis and resolution of a real-world scenario in which the rapid, accurate, and reliable response of a system is fundamental to the safe continuity of a critical service. The scenario in question pertains to a toll management system responsible for the real-time correction of toll transactions involving lane users who encountered problems during passage, such as tag evasion, blocked tags, or access to closed lanes.
 
 In such situations, it is essential that the lane operator be able to perform the transaction correction immediately, releasing the vehicle flow as quickly as possible. Delays in this process can generate elevated user stress, queue formation, negative impacts on traffic fluidity, and, in more critical cases, increase the risk of accidents, particularly during peak hours.
 
-To address this scenario, a toll management system was developed using the Java programming language, responsible for the registration of highways, toll plazas, and lanes, as well as the reception, transmission, and correction of toll transactions in real time. All processed information is persisted in a PostgreSQL relational database. Additionally, a performance analysis framework was implemented that records metrics such as response time, memory consumption, and CPU utilization for every request handled by the system.
+1.3 Proposed Solution
 
-Complementarily, a toll transaction simulation application was developed in Python, responsible for simulating the flow of transactions at a toll plaza and the process of lane transaction correction. This application enables controlled load generation and the reproduction of high-concurrency scenarios, approximating test conditions to real-world operations.
+To address this scenario, a toll management system was developed using Java (Spring Boot 4.0.3 on JDK 21), responsible for the registration of highways, toll plazas, and lanes, as well as the reception, transmission, and correction of toll transactions in real time. All processed information is persisted in a PostgreSQL 15 relational database serving as the Single Source of Truth (SSOT). Additionally, a `PerformanceInterceptor` was implemented to record per-request metrics — response time, memory consumption, CPU usage, and data origin — to a dedicated `registro_performance` table.
 
-The central proposal of this work consists of conducting comparative simulations to objectively evaluate the impacts of in-memory caching and distributed architectures on the performance of a critical toll management system. The general objective is to analyze how different data access strategies — direct relational database queries, in-application memory caching, and distributed caching with Redis — influence latency, computational resource consumption, and system responsiveness under high-concurrency scenarios.
+The architecture employs two-layer in-memory caching: in-app L1 cache via `ConcurrentHashMap` (TTL 30 min, max 1,000 entries) and distributed L2 cache via Redis 7 (TTL 60 min, LRU eviction), following the Cache-Aside pattern. Load balancing is performed by NGINX, distributing requests across three backend instances using round-robin. Asynchronous transaction ingestion is enabled by Apache Kafka (`transacao-pedagio` topic), with a toll simulator developed in Python 3.10.
 
-The specific objectives are: (i) to model a real-time toll transaction correction system based on a distributed architecture; (ii) to implement caching mechanisms at different architectural layers; (iii) to simulate representative operational loads, including request peaks; (iv) to collect and analyze performance metrics such as response time, memory usage, and CPU utilization; and (v) to compare the results obtained across different approaches, highlighting the gains and limitations of each strategy.
+Complementarily, simulation applications were developed in Python: one responsible for simulating the flow of transactions at a toll plaza and another dedicated to simulating the lane transaction correction process. These applications enable controlled load generation and the reproduction of high-concurrency scenarios, approximating test conditions to real-world operations.
+
+1.4 Objectives
+
+The central proposal of this work consists of conducting comparative simulations to objectively evaluate the impacts of in-memory caching and distributed architectures on the performance of a critical toll management system. The **general objective** is to analyze how different data access strategies — direct relational database queries, in-application memory caching, and distributed caching with Redis — influence latency, computational resource consumption, and system responsiveness under high-concurrency scenarios.
+
+The **specific objectives** are:
+
+(i) to model a real-time toll transaction correction system based on a distributed architecture;
+(ii) to implement caching mechanisms at different architectural layers (in-app L1 and Redis L2);
+(iii) to simulate representative operational loads, including peaks of up to 500 simultaneous users;
+(iv) to collect and analyze performance metrics via a custom `PerformanceInterceptor`, including response time, memory usage, CPU utilization, and data origin tracking;
+(v) to compare the results obtained across three experimental scenarios — direct database access (A), Redis caching (B), and hybrid L1+L2 caching (C) — highlighting the gains and limitations of each strategy.
+
+1.5 Justification and Relevance
 
 This experimental approach aligns the research problem — the need for fast and reliable responses in critical toll systems — with the justification of the work, which lies in the practical and social relevance of solutions capable of reducing queues, user stress, and operational risks in high-demand highway environments. Thus, the proposed architecture is not limited to a theoretical exercise but reflects real challenges faced by real-time systems and critical infrastructure.
 
 The relevance of this topic is corroborated by academic studies addressing electronic toll collection systems, real-time applications, and critical systems. Works such as Ferreira et al. (2019) discuss the evolution of automatic toll collection systems and the associated requirements for low latency and high availability. Kopetz (2011) and Burns and Wellings (2010) emphasize the fundamentals and challenges of real-time and critical systems, stressing the importance of predictability and reliability. Furthermore, recent research on distributed architectures and in-memory caching, such as Tanenbaum and Van Steen (2017) and Shi et al. (2020), reinforce the adoption of these solutions as effective strategies for ensuring performance and scalability in large-scale critical applications.
+
+1.6 Document Structure
+
+This work is organized into five chapters. **Chapter 2** presents the theoretical foundation, covering data evolution and criticality, distributed systems, microservices architecture, multi-layer caching strategies, load balancing, cache-database synchronization, real-time systems, and observability. **Chapter 3** describes the materials and methods employed, including the technology stack, system architecture, data modeling, cache strategy, data flow, performance instrumentation, and the experimental methodology with the three test scenarios. **Chapter 4** presents and discusses the results obtained, analyzing latency, behavior under high load, data consistency, and the comparative analysis of cache strategies. **Chapter 5** concludes the work with a synthesis of findings, identified limitations, and directions for future research.
 
 
 2. THEORETICAL FOUNDATION
