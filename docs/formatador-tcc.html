@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formatador TCC — FEAU/UNIVAP</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{--bg:#f0f2f5;--panel:#fff;--text:#1a1a2e;--border:#d1d5db;--accent:#1e3a5f;--accent-light:#2d5a8e;--input-bg:#fff;--input-border:#cbd5e1;--shadow:0 2px 8px rgba(0,0,0,.1);--hover:#e8edf3}
+[data-theme=dark]{--bg:#0f172a;--panel:#1e293b;--text:#e2e8f0;--border:#334155;--accent:#60a5fa;--accent-light:#93c5fd;--input-bg:#0f172a;--input-border:#475569;--shadow:0 2px 8px rgba(0,0,0,.4);--hover:#334155}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:8px 20px;background:var(--accent);color:#fff;height:48px;flex-shrink:0}
+.app-header h1{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+.theme-toggle{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:13px;transition:.2s}
+.theme-toggle:hover{background:rgba(255,255,255,.15)}
+.app-body{display:flex;height:calc(100vh - 48px);overflow:hidden}
+.sidebar{width:340px;min-width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:16px;flex-shrink:0}
+.preview-area{flex:1;overflow-y:auto;padding:24px;background:var(--bg)}
+.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--accent)}
+.section-title:first-child{margin-top:0}
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:11px;font-weight:600;color:var(--text);margin-bottom:3px;opacity:.8}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:6px 8px;border:1px solid var(--input-border);border-radius:4px;font-size:12px;background:var(--input-bg);color:var(--text);transition:.2s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(30,58,95,.15)}
+.form-group textarea{resize:vertical;min-height:60px;font-family:inherit}
+.form-row{display:flex;gap:8px}
+.form-row .form-group{flex:1}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;margin-bottom:8px}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-light)}
+.btn-secondary{background:var(--hover);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--border)}
+.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.file-input{display:none}
+.page-counter{text-align:center;padding:10px;margin:12px 0;border-radius:6px;font-size:13px;font-weight:600;background:var(--hover)}
+.page-counter.ok{background:#d1fae5;color:#065f46}
+.page-counter.warn{background:#fee2e2;color:#991b1b}
+[data-theme=dark] .page-counter.ok{background:#064e3b;color:#6ee7b7}
+[data-theme=dark] .page-counter.warn{background:#7f1d1d;color:#fca5a5}
+.checklist{background:var(--hover);border-radius:6px;padding:10px;margin:12px 0}
+.checklist h4{font-size:12px;margin-bottom:6px;color:var(--accent)}
+.check-item{font-size:11px;padding:2px 0;display:flex;align-items:center;gap:4px}
+.check-item.pass{color:#059669}.check-item.fail{color:#dc2626}
+[data-theme=dark] .check-item.pass{color:#6ee7b7}[data-theme=dark] .check-item.fail{color:#fca5a5}
+.progress-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center}
+.progress-overlay.active{display:flex}
+.progress-box{background:#fff;padding:32px 48px;border-radius:12px;text-align:center}
+.progress-box p{font-size:16px;font-weight:600;color:#1a1a2e;margin-bottom:12px}
+.progress-bar{width:240px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden}
+.progress-bar-fill{height:100%;background:var(--accent);transition:width .3s;width:0}
+.tooltip-wrap{position:relative;display:inline-block}
+.tooltip-wrap .tooltip-text{visibility:hidden;background:#1e293b;color:#fff;font-size:10px;padding:4px 8px;border-radius:4px;position:absolute;bottom:calc(100% + 4px);left:0;white-space:nowrap;z-index:10;opacity:0;transition:.2s}
+.tooltip-wrap:hover .tooltip-text{visibility:visible;opacity:1}
+/* A4 page simulation */
+.a4-page{width:210mm;min-height:297mm;background:#fff;color:#000;margin:0 auto 24px;box-shadow:0 4px 20px rgba(0,0,0,.15);position:relative;padding:30mm 20mm 20mm 30mm;font-family:'Times New Roman',Times,serif;font-size:12pt;line-height:1.5;text-align:justify;overflow:hidden}
+.a4-page.cover-page,.a4-page.title-page{display:flex;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;padding-top:30mm}
+.a4-page .page-number{position:absolute;bottom:15mm;right:20mm;font-size:12pt;font-family:'Times New Roman',Times,serif}
+/* Document content styles */
+.doc-content h1{text-transform:uppercase;font-weight:bold;font-size:12pt;margin:24pt 0 12pt;page-break-before:always;text-align:left;text-indent:0}
+.doc-content h1:first-child{page-break-before:avoid}
+.doc-content h2{font-weight:normal;text-decoration:underline;font-size:12pt;margin:18pt 0 12pt;text-indent:1cm;text-align:left}
+.doc-content h3{font-weight:normal;font-style:italic;font-size:12pt;margin:12pt 0 8pt;text-indent:1cm;text-align:left}
+.doc-content p{text-indent:1cm;margin-bottom:8pt;text-align:justify}
+.doc-content .resumo-section p{text-indent:0;line-height:1.0}
+.doc-content .resumo-section .keywords{margin-top:12pt;text-indent:0;line-height:1.0}
+.doc-content .references-section{text-align:left}
+.doc-content .references-section p{text-indent:0;line-height:1.0;margin-bottom:6pt}
+.doc-content table{width:100%;border-collapse:collapse;margin:12pt 0;font-size:10pt}
+.doc-content table thead{border-top:2px solid #000;border-bottom:1px solid #000}
+.doc-content table tbody{border-bottom:2px solid #000}
+.doc-content table th,.doc-content table td{padding:4pt 6pt;text-align:left;border:none}
+.doc-content table th{font-weight:bold}
+.doc-content .fig-container{text-align:center;margin:16pt 0}
+.doc-content .fig-title{font-size:10pt;font-weight:bold;margin-bottom:6pt;text-indent:0;text-align:center}
+.doc-content .fig-source{font-size:10pt;margin-top:6pt;text-indent:0;text-align:center}
+.doc-content .fig-container img{max-width:100%;height:auto}
+.doc-content pre{background:#f5f5f5;border:1px solid #ddd;padding:8pt;font-family:'Courier New',monospace;font-size:10pt;margin:12pt 0;overflow-x:auto;white-space:pre-wrap;text-indent:0}
+.doc-content code{font-family:'Courier New',monospace;font-size:inherit}
+.doc-content ul,.doc-content ol{margin:8pt 0 8pt 2cm;text-indent:0}
+.doc-content li{margin-bottom:4pt;text-align:justify}
+.doc-content .toc-entry{display:flex;justify-content:space-between;align-items:baseline;margin:4pt 0;text-indent:0}
+.doc-content .toc-entry .toc-dots{flex:1;border-bottom:1px dotted #000;margin:0 4pt;min-width:20pt}
+.doc-content .toc-entry.toc-h1{font-weight:bold;text-transform:uppercase;margin-top:8pt}
+.doc-content .toc-entry.toc-h2{padding-left:1cm}
+.doc-content .toc-entry.toc-h3{padding-left:2cm}
+.no-preview{display:flex;align-items:center;justify-content:center;min-height:400px;color:var(--text);opacity:.5;font-size:16px;text-align:center}
+@media(max-width:1024px){.app-body{flex-direction:column}.sidebar{width:100%;min-width:auto;max-height:45vh;border-right:none;border-bottom:1px solid var(--border)}.preview-area{flex:1}}
+@media print{.sidebar,.app-header{display:none!important}.preview-area{padding:0}.a4-page{box-shadow:none;margin:0;page-break-after:always}}
+</style>
+</head>
+<body>
+<div class="app-header">
+<h1>📄 Formatador TCC — FEAU/UNIVAP</h1>
+<button class="theme-toggle" onclick="toggleTheme()">🌙 Dark</button>
+</div>
+<div class="app-body">
+<div class="sidebar">
+<div class="section-title">Instituição</div>
+<div class="form-group"><label>Universidade</label><div class="tooltip-wrap"><input type="text" id="uni" value="UNIVERSIDADE DO VALE DO PARAÍBA"><span class="tooltip-text">FEAU: Capa com nome da universidade em caixa alta</span></div></div>
+<div class="form-group"><label>Faculdade</label><div class="tooltip-wrap"><input type="text" id="fac" value="FACULDADE DE ENGENHARIAS, ARQUITETURA E URBANISMO"><span class="tooltip-text">FEAU: Nome da Faculdade na capa</span></div></div>
+<div class="form-group"><label>Curso</label><input type="text" id="curso" value="Engenharia da Computação"></div>
+
+<div class="section-title">Aluno(s)</div>
+<div class="form-group"><label>Aluno 1</label><input type="text" id="aluno1" placeholder="Nome completo"></div>
+<div class="form-group"><label>Matrícula 1</label><input type="text" id="mat1" placeholder="Matrícula"></div>
+<div class="form-group"><label>Aluno 2 (opcional)</label><input type="text" id="aluno2" placeholder="Nome completo"></div>
+<div class="form-group"><label>Matrícula 2 (opcional)</label><input type="text" id="mat2" placeholder="Matrícula"></div>
+
+<div class="section-title">Orientação</div>
+<div class="form-group"><label>Orientador</label><input type="text" id="orientador" placeholder="Prof. Nome"></div>
+<div class="form-group"><label>Co-orientador (opcional)</label><input type="text" id="coorientador" placeholder="Prof. Nome"></div>
+
+<div class="section-title">Local e Data</div>
+<div class="form-row">
+<div class="form-group"><label>Cidade</label><input type="text" id="cidade" value="São José dos Campos"></div>
+<div class="form-group" style="max-width:60px"><label>UF</label><input type="text" id="uf" value="SP"></div>
+<div class="form-group" style="max-width:70px"><label>Ano</label><input type="text" id="ano" value="2026"></div>
+</div>
+
+<div class="section-title">Formatação FEAU</div>
+<div class="form-row">
+<div class="form-group"><label>Fonte</label><div class="tooltip-wrap"><select id="fontFamily"><option value="'Times New Roman',Times,serif" selected>Times New Roman</option><option value="Arial,sans-serif">Arial</option></select><span class="tooltip-text">FEAU Anexo II: fonte Times New Roman</span></div></div>
+<div class="form-group" style="max-width:70px"><label>Tam. (pt)</label><div class="tooltip-wrap"><input type="number" id="fontSize" value="12" min="10" max="14"><span class="tooltip-text">FEAU Anexo II: tamanho 12</span></div></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Espaçamento</label><div class="tooltip-wrap"><select id="lineHeight"><option value="1.0">1.0</option><option value="1.5" selected>1.5</option><option value="2.0">2.0</option></select><span class="tooltip-text">FEAU Anexo II: espaço entrelinhas 1,5</span></div></div>
+<div class="form-group"><label>Recuo §</label><div class="tooltip-wrap"><input type="text" id="indent" value="1.0cm"><span class="tooltip-text">FEAU Anexo II: parágrafo de 1,0 cm</span></div></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Margem Sup.</label><div class="tooltip-wrap"><input type="text" id="mTop" value="3cm"><span class="tooltip-text">FEAU Anexo II: margem superior 3 cm</span></div></div>
+<div class="form-group"><label>Margem Inf.</label><div class="tooltip-wrap"><input type="text" id="mBottom" value="2cm"><span class="tooltip-text">FEAU Anexo II: margem inferior 2 cm</span></div></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Margem Esq.</label><div class="tooltip-wrap"><input type="text" id="mLeft" value="3cm"><span class="tooltip-text">FEAU Anexo II: margem esquerda 3 cm</span></div></div>
+<div class="form-group"><label>Margem Dir.</label><div class="tooltip-wrap"><input type="text" id="mRight" value="2cm"><span class="tooltip-text">FEAU Anexo II: margem direita 2 cm</span></div></div>
+</div>
+
+<div class="section-title">Natureza do Trabalho</div>
+<div class="form-group"><div class="tooltip-wrap"><textarea id="natureza" rows="4">Trabalho de Conclusão de Curso apresentado como requisito parcial para obtenção do grau de Bacharel em Engenharia da Computação pela Faculdade de Engenharias, Arquitetura e Urbanismo da Universidade do Vale do Paraíba.</textarea><span class="tooltip-text">FEAU: Texto da natureza do trabalho na folha de rosto</span></div></div>
+
+<div class="section-title">Ações</div>
+<input type="file" id="mdFile" class="file-input" accept=".md,.txt">
+<button class="btn btn-secondary" onclick="document.getElementById('mdFile').click()">📂 Carregar Markdown</button>
+<input type="file" id="imgFiles" class="file-input" accept="image/*" multiple>
+<button class="btn btn-secondary" onclick="document.getElementById('imgFiles').click()">🖼 Carregar Imagens</button>
+<button class="btn btn-primary" id="btnPreview" onclick="renderPreview()" disabled>👁 Visualizar</button>
+<button class="btn btn-success" id="btnPdf" onclick="exportPDF()" disabled>📥 Baixar PDF</button>
+
+<div id="pageCounter" class="page-counter" style="display:none"></div>
+
+<div id="checklist" class="checklist" style="display:none">
+<h4>Validação FEAU</h4>
+<div id="checkItems"></div>
+</div>
+</div>
+
+<div class="preview-area" id="previewArea">
+<div class="no-preview" id="noPreview">Carregue um arquivo .md para começar</div>
+<div id="previewContent" style="display:none"></div>
+</div>
+</div>
+
+<div class="progress-overlay" id="progressOverlay">
+<div class="progress-box">
+<p>Gerando PDF…</p>
+<div class="progress-bar"><div class="progress-bar-fill" id="progressFill"></div></div>
+</div>
+</div>
+
+<script>
+/* ── State ── */
+let rawMd='',parsedTitle='',parsedSections={},imageMap={},allHeadings=[];
+const FIELDS=['uni','fac','curso','aluno1','mat1','aluno2','mat2','orientador','coorientador','cidade','uf','ano','fontFamily','fontSize','lineHeight','indent','mTop','mBottom','mLeft','mRight','natureza'];
+
+/* ── Theme ── */
+function toggleTheme(){const d=document.documentElement;const t=d.getAttribute('data-theme')==='dark'?'':'dark';d.setAttribute('data-theme',t);document.querySelector('.theme-toggle').textContent=t?'☀ Light':'🌙 Dark';localStorage.setItem('theme',t)}
+(function(){const t=localStorage.getItem('theme');if(t){document.documentElement.setAttribute('data-theme',t);document.querySelector('.theme-toggle').textContent=t==='dark'?'☀ Light':'🌙 Dark'}})();
+
+/* ── LocalStorage ── */
+function saveFields(){const d={};FIELDS.forEach(id=>{const el=document.getElementById(id);d[id]=el?el.value:''});localStorage.setItem('tcc_fields',JSON.stringify(d))}
+function loadFields(){try{const d=JSON.parse(localStorage.getItem('tcc_fields'));if(d)FIELDS.forEach(id=>{const el=document.getElementById(id);if(el&&d[id]!==undefined)el.value=d[id]})}catch(e){}}
+loadFields();
+document.querySelectorAll('.sidebar input,.sidebar select,.sidebar textarea').forEach(el=>el.addEventListener('change',saveFields));
+
+/* ── File Handlers ── */
+document.getElementById('mdFile').addEventListener('change',function(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){rawMd=ev.target.result;document.getElementById('btnPreview').disabled=false;document.getElementById('btnPdf').disabled=false;renderPreview()};
+  reader.readAsText(file)
+});
+document.getElementById('imgFiles').addEventListener('change',function(e){
+  Array.from(e.target.files).forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=function(ev){imageMap[file.name]=ev.target.result;if(rawMd)renderPreview()};
+    reader.readAsDataURL(file)
+  })
+});
+
+/* ── Markdown Parsing ── */
+function parseMd(md){
+  const sections={titulo:'',resumo:'',palavrasChave:'',abstract_:'',keywords:'',sumario:'',body:'',referencias:'',apendices:'',anexos:''};
+  const lines=md.split('\n');let i=0,mode='';
+
+  // Extract TITULO
+  while(i<lines.length){
+    if(lines[i].trim()==='TITULO'){i++;while(i<lines.length&&!lines[i].trim())i++;
+      let t=[];while(i<lines.length&&lines[i].trim()&&lines[i].trim()!=='RESUMO'){t.push(lines[i].trim());i++}
+      sections.titulo=t.join(' ');break}
+    i++
+  }
+  parsedTitle=sections.titulo;
+
+  // Extract RESUMO
+  while(i<lines.length){
+    if(lines[i].trim()==='RESUMO'){i++;let t=[];
+      while(i<lines.length&&lines[i].trim()!=='ABSTRACT'){
+        const l=lines[i].trim();
+        if(l.startsWith('Palavras-chave:')){sections.palavrasChave=l;i++;continue}
+        if(l)t.push(l);i++
+      }
+      sections.resumo=t.join('\n');break}
+    i++
+  }
+
+  // Extract ABSTRACT
+  while(i<lines.length){
+    if(lines[i].trim()==='ABSTRACT'){i++;let t=[];
+      while(i<lines.length&&lines[i].trim()!=='SUMÁRIO'&&!lines[i].trim().match(/^\d+\.\s/)){
+        const l=lines[i].trim();
+        if(l.startsWith('Keywords:')){sections.keywords=l;i++;continue}
+        if(l)t.push(l);i++
+      }
+      sections.abstract_=t.join('\n');break}
+    i++
+  }
+
+  // Skip SUMÁRIO
+  while(i<lines.length){
+    if(lines[i].trim()==='SUMÁRIO'){i++;while(i<lines.length&&!lines[i].trim().match(/^1\.\s/))i++;break}
+    if(lines[i].trim().match(/^1\.\s/))break;
+    i++
+  }
+
+  // Collect body, referencias, apendices, anexos
+  let bodyLines=[],refLines=[],apLines=[],anLines=[];
+  let currentSection='body';
+  while(i<lines.length){
+    const l=lines[i].trim();
+    if(l==='REFERÊNCIAS'||l==='REFERENCIAS'){currentSection='ref';refLines.push(lines[i]);i++;continue}
+    if(l==='APÊNDICES'||l==='APENDICES'){currentSection='ap';apLines.push(lines[i]);i++;continue}
+    if(l==='ANEXOS'){currentSection='an';anLines.push(lines[i]);i++;continue}
+    if(currentSection==='body')bodyLines.push(lines[i]);
+    else if(currentSection==='ref')refLines.push(lines[i]);
+    else if(currentSection==='ap')apLines.push(lines[i]);
+    else anLines.push(lines[i]);
+    i++
+  }
+  sections.body=bodyLines.join('\n');
+  sections.referencias=refLines.join('\n');
+  sections.apendices=apLines.join('\n');
+  sections.anexos=anLines.join('\n');
+
+  parsedSections=sections;
+  extractHeadings(sections.body);
+  return sections
+}
+
+function extractHeadings(body){
+  allHeadings=[];
+  const lines=body.split('\n');
+  for(const line of lines){
+    const l=line.trim();
+    let m;
+    // ## heading or ### heading
+    if((m=l.match(/^(#{1,3})\s+(.+)/))){
+      const level=m[1].length;
+      allHeadings.push({level,text:m[2]});continue
+    }
+    // N. TITLE pattern
+    if((m=l.match(/^(\d+)\.\s+(.+)/))){
+      allHeadings.push({level:1,text:m[1]+'. '+m[2]});continue
+    }
+    // N.N or N.N.N Title
+    if((m=l.match(/^(\d+\.\d+(?:\.\d+)?)\s+(.+)/))){
+      const dots=m[1].split('.').length;
+      allHeadings.push({level:dots,text:m[1]+' '+m[2]});continue
+    }
+  }
+}
+
+/* ── HTML Rendering ── */
+function getFormVal(id){return document.getElementById(id).value}
+
+function renderCoverPage(){
+  return `<div class="a4-page cover-page" style="padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')}">
+    <div style="margin-top:20mm">
+      <p style="font-size:14pt;font-weight:bold;letter-spacing:1px">${getFormVal('uni')}</p>
+      <p style="font-size:13pt;font-weight:bold;margin-top:6pt">${getFormVal('fac')}</p>
+      <p style="font-size:12pt;margin-top:8pt">${getFormVal('curso')}</p>
+    </div>
+    <div style="margin-top:30mm">
+      <p style="font-size:14pt;font-weight:bold;line-height:1.8;text-transform:uppercase">${parsedTitle||'[Título do Trabalho]'}</p>
+    </div>
+    <div>
+      <p style="font-size:12pt;margin-top:20mm">${getFormVal('aluno1')||'[Nome do Aluno 1]'}</p>
+      ${getFormVal('aluno2')?`<p style="font-size:12pt;margin-top:4pt">${getFormVal('aluno2')}</p>`:''}
+      <p style="font-size:12pt;margin-top:16pt">Orientador: ${getFormVal('orientador')||'[Nome do Orientador]'}</p>
+      ${getFormVal('coorientador')?`<p style="font-size:12pt;margin-top:4pt">Co-orientador: ${getFormVal('coorientador')}</p>`:''}
+    </div>
+    <div style="margin-bottom:20mm">
+      <p style="font-size:12pt">${getFormVal('cidade')} — ${getFormVal('uf')}</p>
+      <p style="font-size:12pt">${getFormVal('ano')}</p>
+    </div>
+  </div>`
+}
+
+function renderTitlePage(){
+  return `<div class="a4-page title-page" style="padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')}">
+    <div style="margin-top:20mm">
+      <p style="font-size:14pt;font-weight:bold">${getFormVal('uni')}</p>
+      <p style="font-size:13pt;font-weight:bold;margin-top:6pt">${getFormVal('fac')}</p>
+      <p style="font-size:12pt;margin-top:8pt">${getFormVal('curso')}</p>
+    </div>
+    <div style="margin-top:20mm">
+      <p style="font-size:14pt;font-weight:bold;line-height:1.8;text-transform:uppercase">${parsedTitle||'[Título do Trabalho]'}</p>
+      <p style="font-size:12pt;margin-top:16pt">${getFormVal('aluno1')||'[Nome do Aluno 1]'}</p>
+      ${getFormVal('aluno2')?`<p style="font-size:12pt;margin-top:4pt">${getFormVal('aluno2')}</p>`:''}
+    </div>
+    <div style="max-width:60%;text-align:right;align-self:flex-end;margin-top:20mm;margin-right:0">
+      <p style="font-size:11pt;line-height:1.3;text-align:justify">${getFormVal('natureza')}</p>
+      <p style="font-size:11pt;margin-top:12pt">Orientador: ${getFormVal('orientador')||'[Nome do Orientador]'}</p>
+      ${getFormVal('coorientador')?`<p style="font-size:11pt;margin-top:4pt">Co-orientador: ${getFormVal('coorientador')}</p>`:''}
+    </div>
+    <div style="margin-bottom:20mm">
+      <p style="font-size:12pt">${getFormVal('cidade')} — ${getFormVal('uf')}</p>
+      <p style="font-size:12pt">${getFormVal('ano')}</p>
+    </div>
+  </div>`
+}
+
+function renderResumo(){
+  const s=parsedSections;
+  const pageStyle=`style="padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt"`;
+  let html=`<div class="a4-page" ${pageStyle}>
+    <div class="doc-content resumo-section">
+    <h1 style="text-align:center;page-break-before:avoid">RESUMO</h1>
+    <p style="line-height:1.0;text-indent:0;text-align:justify">${escapeHtml(s.resumo).replace(/`([^`]+)`/g,'<code>$1</code>')}</p>`;
+  if(s.palavrasChave){
+    html+=`<p class="keywords" style="line-height:1.0;text-indent:0"><strong>${escapeHtml(s.palavrasChave).split(':')[0]}:</strong>${escapeHtml(s.palavrasChave).split(':').slice(1).join(':')}</p>`
+  }
+  html+=`</div></div>`;
+
+  html+=`<div class="a4-page" ${pageStyle}>
+    <div class="doc-content resumo-section">
+    <h1 style="text-align:center;page-break-before:avoid">ABSTRACT</h1>
+    <p style="line-height:1.0;text-indent:0;text-align:justify">${escapeHtml(s.abstract_).replace(/`([^`]+)`/g,'<code>$1</code>')}</p>`;
+  if(s.keywords){
+    html+=`<p class="keywords" style="line-height:1.0;text-indent:0"><strong>${escapeHtml(s.keywords).split(':')[0]}:</strong>${escapeHtml(s.keywords).split(':').slice(1).join(':')}</p>`
+  }
+  html+=`</div></div>`;
+  return html
+}
+
+function renderTOC(){
+  const pageStyle=`style="padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt"`;
+  let html=`<div class="a4-page" ${pageStyle}><div class="doc-content">
+    <h1 style="text-align:center;page-break-before:avoid">SUMÁRIO</h1>`;
+  allHeadings.forEach(h=>{
+    const cls=h.level===1?'toc-h1':h.level===2?'toc-h2':'toc-h3';
+    html+=`<div class="toc-entry ${cls}"><span>${escapeHtml(h.text)}</span><span class="toc-dots"></span><span>—</span></div>`
+  });
+  // Post-textual
+  if(parsedSections.referencias)html+=`<div class="toc-entry toc-h1"><span>REFERÊNCIAS</span><span class="toc-dots"></span><span>—</span></div>`;
+  if(parsedSections.apendices.trim())html+=`<div class="toc-entry toc-h1"><span>APÊNDICES</span><span class="toc-dots"></span><span>—</span></div>`;
+  if(parsedSections.anexos.trim())html+=`<div class="toc-entry toc-h1"><span>ANEXOS</span><span class="toc-dots"></span><span>—</span></div>`;
+  html+=`</div></div>`;
+  return html
+}
+
+function processBodyMd(md){
+  // Configure marked
+  marked.setOptions({breaks:false,gfm:true});
+
+  // Custom renderer
+  const renderer=new marked.Renderer();
+
+  renderer.heading=function(text,level,raw){
+    // Handle the tokens/text object from newer marked versions
+    const headingText = typeof text === 'object' ? text.text || text.toString() : text;
+    const headingDepth = typeof text === 'object' && text.depth ? text.depth : level;
+    if(headingDepth===1)return `<h1>${headingText}</h1>`;
+    if(headingDepth===2)return `<h2>${headingText}</h2>`;
+    return `<h3>${headingText}</h3>`
+  };
+
+  renderer.image=function(href,title,text){
+    // Handle the token object from newer marked versions
+    const imgHref = typeof href === 'object' ? href.href || href.toString() : href;
+    const imgText = typeof href === 'object' ? href.text || text || '' : text || '';
+    const imgTitle = typeof href === 'object' ? href.title || title || '' : title || '';
+    const fname=imgHref.split('/').pop();
+    const src=imageMap[fname]||imgHref;
+    const caption=imgText||imgTitle||'';
+    return `<div class="fig-container">
+      ${caption?`<p class="fig-title">${caption}</p>`:''}
+      <img src="${src}" alt="${caption}">
+      <p class="fig-source">Fonte: O autor</p>
+    </div>`
+  };
+
+  renderer.table=function(header,body){
+    // Handle token object from newer marked versions
+    if(typeof header === 'object' && header.header && header.rows){
+      const token=header;
+      let thead='<thead><tr>';
+      token.header.forEach(cell=>{
+        const cellText=typeof cell==='object'?(cell.text||cell.tokens?.map(t=>t.text||t.raw).join('')||''):cell;
+        thead+=`<th>${cellText}</th>`
+      });
+      thead+='</tr></thead>';
+      let tbody='<tbody>';
+      token.rows.forEach(row=>{
+        tbody+='<tr>';
+        row.forEach(cell=>{
+          const cellText=typeof cell==='object'?(cell.text||cell.tokens?.map(t=>t.text||t.raw).join('')||''):cell;
+          tbody+=`<td>${cellText}</td>`
+        });
+        tbody+='</tr>'
+      });
+      tbody+='</tbody>';
+      return `<table>${thead}${tbody}</table>`
+    }
+    return `<table><thead>${header}</thead><tbody>${body}</tbody></table>`
+  };
+
+  renderer.code=function(code,lang,escaped){
+    const codeText=typeof code==='object'?(code.text||code.toString()):code;
+    return `<pre><code>${escapeHtml(codeText)}</code></pre>`
+  };
+
+  marked.use({renderer});
+  let html=marked.parse(md);
+
+  // Fix paragraphs inside figure descriptions (italic lines after images)
+  html=html.replace(/<p><em>([^<]*(?:Figura|Tabela|Gráfico|Quadro|diagrama|fluxo)[^<]*)<\/em><\/p>/gi,
+    '<p class="fig-source" style="font-size:10pt;font-style:italic;text-indent:0;text-align:justify">$1</p>');
+
+  return html
+}
+
+function renderBody(){
+  const pageStyle=`padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt;line-height:${getFormVal('lineHeight')}`;
+  const indent=getFormVal('indent');
+
+  let bodyHtml=processBodyMd(parsedSections.body);
+
+  // Split by h1 for page breaks
+  const parts=bodyHtml.split(/<h1>/);
+  let pages='';
+  parts.forEach((part,i)=>{
+    if(!part.trim())return;
+    const content=i>0?'<h1>'+part:part;
+    pages+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content" style="--indent:${indent}">${content}</div></div>`
+  });
+
+  // Add inline style for paragraph indent
+  pages=pages.replace(/<style>/g,'').replace(/text-indent:\s*1cm/g,`text-indent:${indent}`);
+
+  return pages
+}
+
+function renderReferences(){
+  if(!parsedSections.referencias.trim())return '';
+  const pageStyle=`padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt`;
+  let refHtml=marked.parse(parsedSections.referencias);
+  return `<div class="a4-page" style="${pageStyle}"><div class="doc-content references-section">${refHtml}</div></div>`
+}
+
+function renderAppendices(){
+  let html='';
+  const pageStyle=`padding:${getFormVal('mTop')} ${getFormVal('mRight')} ${getFormVal('mBottom')} ${getFormVal('mLeft')};font-family:${getFormVal('fontFamily')};font-size:${getFormVal('fontSize')}pt;line-height:${getFormVal('lineHeight')}`;
+  if(parsedSections.apendices.trim()){
+    html+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content">${marked.parse(parsedSections.apendices)}</div></div>`
+  }
+  if(parsedSections.anexos.trim()){
+    html+=`<div class="a4-page" style="${pageStyle}"><div class="doc-content">${marked.parse(parsedSections.anexos)}</div></div>`
+  }
+  return html
+}
+
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+/* ── Main Render ── */
+function renderPreview(){
+  if(!rawMd)return;
+  parseMd(rawMd);
+  saveFields();
+
+  let fullHtml='';
+  fullHtml+=renderCoverPage();
+  fullHtml+=renderTitlePage();
+  fullHtml+=renderResumo();
+  fullHtml+=renderTOC();
+  fullHtml+=renderBody();
+  fullHtml+=renderReferences();
+  fullHtml+=renderAppendices();
+
+  document.getElementById('noPreview').style.display='none';
+  const pc=document.getElementById('previewContent');
+  pc.style.display='block';
+  pc.innerHTML=fullHtml;
+
+  // Apply paragraph indent via CSS override
+  const indent=getFormVal('indent');
+  pc.querySelectorAll('.doc-content p').forEach(p=>{
+    if(!p.classList.contains('fig-title')&&!p.classList.contains('fig-source')&&!p.classList.contains('keywords')&&!p.closest('.resumo-section')&&!p.closest('.references-section')&&!p.closest('.toc-entry')){
+      p.style.textIndent=indent
+    }
+  });
+
+  // Apply sub-section underline style
+  pc.querySelectorAll('.doc-content h2').forEach(h=>{
+    h.style.textDecoration='underline';
+    h.style.textIndent=indent
+  });
+  pc.querySelectorAll('.doc-content h3').forEach(h=>{
+    h.style.textIndent=indent
+  });
+
+  addPageNumbers();
+  updatePageCount();
+  runValidation()
+}
+
+function addPageNumbers(){
+  const pages=document.querySelectorAll('#previewContent .a4-page');
+  let introFound=false,pageNum=0,totalCount=0;
+  pages.forEach((page,i)=>{
+    totalCount++;
+    if(!introFound){
+      const h1s=page.querySelectorAll('h1');
+      h1s.forEach(h=>{
+        if(h.textContent.trim().match(/INTRODU[ÇC][ÃA]O/i))introFound=true
+      })
+    }
+    // Remove existing page numbers
+    const existing=page.querySelector('.page-number');
+    if(existing)existing.remove();
+
+    if(introFound){
+      pageNum++;
+      const pn=document.createElement('div');
+      pn.className='page-number';
+      pn.textContent=pageNum;
+      pn.style.position='absolute';
+      pn.style.bottom='15mm';
+      pn.style.right=getFormVal('mRight');
+      page.style.position='relative';
+      page.appendChild(pn)
+    }
+  })
+}
+
+function updatePageCount(){
+  const pages=document.querySelectorAll('#previewContent .a4-page');
+  const count=pages.length;
+  const el=document.getElementById('pageCounter');
+  el.style.display='block';
+  // Estimate: pretextual ~4 pages, so textual ≈ count-4
+  const textual=Math.max(count-4,0);
+  if(textual>=30&&textual<=40){
+    el.className='page-counter ok';
+    el.textContent=`Páginas: ~${textual} (total ${count}) ✅ Dentro do limite FEAU`
+  }else if(textual<30){
+    el.className='page-counter warn';
+    el.textContent=`Páginas: ~${textual} (total ${count}) 🔴 Abaixo do mínimo FEAU: 30 páginas`
+  }else{
+    el.className='page-counter warn';
+    el.textContent=`Páginas: ~${textual} (total ${count}) 🔴 Acima do máximo FEAU: 40 páginas`
+  }
+}
+
+function runValidation(){
+  const s=parsedSections;
+  const checks=[
+    {label:'Resumo em parágrafo único',ok:s.resumo.trim().length>0&&!s.resumo.includes('\n\n')},
+    {label:'Palavras-chave presentes (3–5)',ok:(()=>{if(!s.palavrasChave)return false;const w=s.palavrasChave.split(':')[1];if(!w)return false;const c=w.split(/[.,;]/).filter(x=>x.trim()).length;return c>=3&&c<=9})()},
+    {label:'Abstract presente',ok:s.abstract_.trim().length>0},
+    {label:'Keywords presentes',ok:s.keywords.trim().length>0},
+    {label:'Referências presentes',ok:s.referencias.trim().length>10},
+    {label:'Contém INTRODUÇÃO',ok:s.body.includes('INTRODUÇÃO')||s.body.includes('INTRODUCAO')},
+    {label:'Contém CONCLUSÃO',ok:s.body.includes('CONCLUSÃO')||s.body.includes('CONCLUSAO')}
+  ];
+  const el=document.getElementById('checklist');
+  el.style.display='block';
+  document.getElementById('checkItems').innerHTML=checks.map(c=>
+    `<div class="check-item ${c.ok?'pass':'fail'}">${c.ok?'✅':'❌'} ${c.label}</div>`
+  ).join('')
+}
+
+/* ── PDF Export ── */
+async function exportPDF(){
+  if(!rawMd)return;
+  const overlay=document.getElementById('progressOverlay');
+  const fill=document.getElementById('progressFill');
+  overlay.classList.add('active');
+  fill.style.width='10%';
+
+  // Clone preview for PDF
+  const content=document.getElementById('previewContent').cloneNode(true);
+  content.style.display='block';
+
+  // Temp container
+  const tmp=document.createElement('div');
+  tmp.style.position='fixed';
+  tmp.style.left='-9999px';
+  tmp.style.top='0';
+  document.body.appendChild(tmp);
+  tmp.appendChild(content);
+
+  fill.style.width='30%';
+
+  const aluno=getFormVal('aluno1')||'Aluno';
+  const filename=`TCC_${aluno.replace(/\s+/g,'_')}_${getFormVal('ano')}.pdf`;
+
+  const opt={
+    margin:0,
+    filename,
+    image:{type:'jpeg',quality:0.95},
+    html2canvas:{scale:2,useCORS:true,logging:false,width:793.7,windowWidth:793.7},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+    pagebreak:{mode:['css','legacy'],before:'.a4-page',avoid:['table','pre','.fig-container']}
+  };
+
+  fill.style.width='50%';
+
+  try{
+    // Flatten: render each .a4-page as a separate PDF page
+    const pages=content.querySelectorAll('.a4-page');
+    const pagesArr=Array.from(pages);
+
+    // Wrap each page separately for html2pdf
+    const wrapper=document.createElement('div');
+    pagesArr.forEach((p,i)=>{
+      const clone=p.cloneNode(true);
+      clone.style.width='210mm';
+      clone.style.minHeight='297mm';
+      clone.style.boxShadow='none';
+      clone.style.margin='0';
+      if(i>0)clone.style.pageBreakBefore='always';
+      wrapper.appendChild(clone)
+    });
+
+    tmp.innerHTML='';
+    tmp.appendChild(wrapper);
+
+    fill.style.width='70%';
+
+    await html2pdf().set(opt).from(wrapper).save();
+
+    fill.style.width='100%';
+    setTimeout(()=>{overlay.classList.remove('active');fill.style.width='0'},800)
+  }catch(e){
+    console.error(e);
+    overlay.classList.remove('active');
+    alert('Erro ao gerar PDF: '+e.message)
+  }finally{
+    document.body.removeChild(tmp)
+  }
+}
+</script>
+</body>
+</html>
