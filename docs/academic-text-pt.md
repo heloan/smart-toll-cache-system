@@ -17,33 +17,40 @@ Keywords: distributed systems, in-memory cache, microservices, Redis, NGINX, dat
 
 SUMÁRIO
 
-INTRODUÇÃO .............................................................................. 1
+1 INTRODUÇÃO ............................................................................. 1
 
-FUNDAMENTAÇÃO TEÓRICA ....................................................... 3
-2.1. Cacheamento na Memória ....................................................... 3
-2.2. Desempenho em Sistemas Distribuídos ............................. 4
-2.3. Arquitetura de Microserviços ................................................ 5
-2.4. Estratégias de Cache: In-App, Redis e no Cliente .............. 6
-2.5. Balanceamento de Carga com NGINX ................................. 7
-2.6. Distribuição de Redis e Sharding ....................................... 8
-2.7. Sincronismo entre Cache e Banco de Dados ...................... 9
+2 FUNDAMENTAÇÃO TEÓRICA ...................................................... 3
+2.1 A Evolução dos Dados e sua Criticidade na Sociedade Digital ........... 3
+2.2 Sistemas Distribuídos e Desempenho Computacional ...................... 4
+2.3 Arquitetura de Microserviços ........................................................ 5
+2.4 Cache em Memória como Estratégia de Otimização ........................ 6
+2.5 Estratégias de Cache em Diferentes Camadas da Arquitetura .......... 7
+2.6 Balanceamento de Carga .............................................................. 8
+2.7 Cache Distribuído e Particionamento de Dados ............................... 9
+2.8 Sincronização entre Cache e Banco de Dados ................................. 10
+2.9 Sistemas de Tempo Real e Sistemas Críticos .................................. 11
+2.10 Observabilidade e Monitoramento de Desempenho ....................... 13
 
-MATERIAIS E MÉTODOS ......................................................... 10
-3.1. Tecnologias Utilizadas ...................................................... 10
-3.2. Projeto da Arquitetura Proposta ...................................... 11
-3.3. Cenários de Teste e Casos de Uso ..................................... 12
-3.4. Métricas Avaliadas ............................................................ 13
+3 MATERIAIS E MÉTODOS ............................................................. 15
+3.1 Tecnologias Utilizadas ................................................................ 15
+3.2 Arquitetura do Sistema ................................................................ 17
+3.3 Modelagem e Design de Dados ..................................................... 18
+3.4 Estratégia de Cache e Sincronismo ................................................ 19
+3.5 Fluxo de Dados e Comunicação .................................................... 21
+3.6 Instrumentação de Performance ................................................... 22
+3.7 Metodologia Experimental ........................................................... 23
 
-RESULTADOS E DISCUSSÃO .................................................. 14
-4.1. Análise de Latência e Performance .................................... 14
-4.2. Comportamento em Cargas Elevadas ............................... 16
-4.3. Consistência de Dados e Sincronismo ............................. 17
-4.4. Análise Comparativa das Estratégias de Cache ................ 18
+4 RESULTADOS E DISCUSSÃO ....................................................... 25
+4.1 Análise de Latência e Performance ................................................ 25
+4.2 Comportamento em Cargas Elevadas ............................................. 27
+4.3 Consistência de Dados e Sincronismo ............................................ 29
+4.4 Análise Comparativa das Estratégias de Cache ................................ 31
 
-CONCLUSÃO ......................................................................... 20
-REFERÊNCIAS ........................................................................ 21
-APÊNDICES (opcional) .............................................................. 22
-ANEXOS (opcional) ................................................................ 23
+5 CONCLUSÃO .............................................................................. 34
+
+REFERÊNCIAS ................................................................................ 36
+APÊNDICES ................................................................................... 38
+ANEXOS ........................................................................................ 41
 
 
 1. INTRODUÇÃO
@@ -65,10 +72,6 @@ A proposta central deste trabalho consiste em realizar simulações comparativas
 Como objetivos específicos, busca-se: (i) modelar um sistema de correção de transações de pedágio em tempo real baseado em uma arquitetura distribuída; (ii) implementar mecanismos de cache em diferentes camadas da arquitetura; (iii) simular cargas representativas de operação real, incluindo picos de requisições; (iv) coletar e analisar métricas de desempenho, como tempo de resposta, uso de memória e processamento; e (v) comparar os resultados obtidos entre as diferentes abordagens, evidenciando os ganhos e limitações de cada estratégia.
 Essa abordagem experimental permite alinhar o problema de pesquisa, a necessidade de respostas rápidas e confiáveis em sistemas críticos de pedágio, à justificativa do trabalho, que reside na relevância prática e social de soluções capazes de reduzir filas, estresse dos usuários e riscos operacionais em ambientes rodoviários de alta demanda. Assim, a arquitetura proposta não se limita a um exercício teórico, mas reflete desafios reais enfrentados por sistemas de tempo real e infraestruturas críticas.
 A relevância desse tema é corroborada por estudos acadêmicos que abordam sistemas de pedágio eletrônico, aplicações de tempo real e sistemas críticos. Trabalhos como o de Ferreira et al. (2019) discutem a evolução dos sistemas de cobrança automática de pedágio e os requisitos de baixa latência e alta disponibilidade associados a esses ambientes. Já Kopetz (2011) e Burns e Wellings (2010) destacam fundamentos e desafios de sistemas de tempo real e sistemas críticos, enfatizando a importância de previsibilidade e confiabilidade. Além disso, pesquisas recentes sobre arquiteturas distribuídas e cache em memória, como Tanenbaum e Van Steen (2017) e Shi et al. (2020), reforçam a adoção dessas soluções como estratégias eficazes para garantir desempenho e escalabilidade em aplicações críticas de grande porte.
-
-
- IDC – INTERNATIONAL DATA CORPORATION. Data Age 2025: The Evolution of Data to Life-Critical – Don’t Focus on Big Data; Focus on the Data That’s Big. Framingham, MA: IDC, 2017. White Paper patrocinado pela Seagate. Disponível em: https://www.seagate.com/files/www-content/our-story/trends/files/Seagate-WP-DataAge2025-March-2017.pdf. Acesso em: 2026.
-
 
 2. FUNDAMENTAÇÃO TEÓRICA
 

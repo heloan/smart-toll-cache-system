@@ -19,42 +19,40 @@ Keywords: distributed systems, in-memory cache, microservices, Redis, NGINX, dat
 
 TABLE OF CONTENTS
 
-1. INTRODUCTION .............................................................................. 1
+1 INTRODUCTION ............................................................................. 1
 
-2. THEORETICAL FOUNDATION ......................................................... 3
-   2.1. Data Evolution and Criticality in the Digital Society ............... 3
-   2.2. Distributed Systems and Computational Performance ........... 4
-   2.3. Microservices Architecture ..................................................... 5
-   2.4. In-Memory Caching as an Optimization Strategy ................... 6
-   2.5. Cache Strategies Across Architectural Layers ........................ 7
-   2.6. Load Balancing ....................................................................... 8
-   2.7. Distributed Caching and Data Partitioning ............................. 9
-   2.8. Cache-Database Synchronization ........................................... 10
-   2.9. Real-Time and Mission-Critical Systems ................................ 11
-   2.10. Observability and Performance Monitoring .......................... 12
+2 THEORETICAL FOUNDATION ......................................................... 3
+2.1 Data Evolution and Criticality in the Digital Society ...................... 3
+2.2 Distributed Systems and Computational Performance .................. 4
+2.3 Microservices Architecture ........................................................... 5
+2.4 In-Memory Caching as an Optimization Strategy .......................... 6
+2.5 Cache Strategies Across Architectural Layers ............................... 7
+2.6 Load Balancing ............................................................................. 8
+2.7 Distributed Caching and Data Partitioning ................................... 9
+2.8 Cache-Database Synchronization ................................................. 10
+2.9 Real-Time and Mission-Critical Systems ...................................... 11
+2.10 Observability and Performance Monitoring ................................. 13
 
-3. MATERIALS AND METHODS .......................................................... 13
-   3.1. Technology Stack .................................................................... 13
-   3.2. System Architecture ............................................................... 14
-   3.3. Data Modeling and Database Design ...................................... 15
-   3.4. Cache Strategy and Synchronization ...................................... 16
-   3.5. Data Flow and Communication Pipeline ................................. 17
-   3.6. Performance Instrumentation ................................................. 18
-   3.7. Experimental Methodology ..................................................... 19
+3 MATERIALS AND METHODS .......................................................... 15
+3.1 Technology Stack ......................................................................... 15
+3.2 System Architecture .................................................................... 17
+3.3 Data Modeling and Database Design ............................................ 18
+3.4 Cache Strategy and Synchronization ............................................ 19
+3.5 Data Flow and Communication Pipeline ....................................... 21
+3.6 Performance Instrumentation ...................................................... 22
+3.7 Experimental Methodology ......................................................... 23
 
-4. RESULTS AND DISCUSSION .......................................................... 20
-   4.1. Latency and Performance Analysis ......................................... 20
-   4.2. Behavior Under High Load ..................................................... 22
-   4.3. Data Consistency and Synchronization ................................... 24
-   4.4. Comparative Analysis of Cache Strategies .............................. 26
+4 RESULTS AND DISCUSSION .......................................................... 25
+4.1 Latency and Performance Analysis .............................................. 25
+4.2 Behavior Under High Load .......................................................... 27
+4.3 Data Consistency and Synchronization ........................................ 29
+4.4 Comparative Analysis of Cache Strategies ................................... 31
 
-5. CONCLUSION ................................................................................. 28
+5 CONCLUSION ................................................................................ 34
 
-REFERENCES ...................................................................................... 29
-
-APPENDICES ....................................................................................... 30
-
-ANNEXES ............................................................................................ 31
+REFERENCES ................................................................................... 36
+APPENDICES .................................................................................... 38
+ANNEXES ........................................................................................ 41
 
 
 1. INTRODUCTION
