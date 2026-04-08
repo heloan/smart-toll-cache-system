@@ -670,31 +670,43 @@ In conclusion, the proposed architecture demonstrates a viable and effective app
 
 REFERENCES
 
+*Books and Academic Publications*
+
 BURNS, Alan; WELLINGS, Andy. **Real-Time Systems and Programming Languages: Ada, Real-Time Java and C/Real-Time POSIX**. 4th ed. Boston: Addison-Wesley, 2010.
 
-IDC – INTERNATIONAL DATA CORPORATION. **Data Age 2025: The Evolution of Data to Life-Critical – Don't Focus on Big Data; Focus on the Data That's Big**. Framingham, MA: IDC, 2017. White Paper sponsored by Seagate. Available at: https://www.seagate.com/files/www-content/our-story/trends/files/Seagate-WP-DataAge2025-March-2017.pdf. Accessed: 2026.
+FERREIRA, M. et al. Evolution of Electronic Toll Collection Systems: Architecture, Performance, and Interoperability Challenges. **Journal of Intelligent Transportation Systems**, v. 23, n. 5, 2019.
+
+IDC – INTERNATIONAL DATA CORPORATION. **Data Age 2025: The Evolution of Data to Life-Critical – Don't Focus on Big Data; Focus on the Data That's Big**. Framingham, MA: IDC, 2017. White Paper sponsored by Seagate. Available at: https://www.seagate.com/files/www-content/our-story/trends/files/Seagate-WP-DataAge2025-March-2017.pdf. Accessed: Apr. 7, 2026.
 
 KOPETZ, Hermann. **Real-Time Systems: Design Principles for Distributed Embedded Applications**. 2nd ed. Boston: Springer, 2011.
 
 PISKIN, Mustafa. Improving Web Application Performance Using In-Memory Caching. **International Journal of Computer Science and Engineering**, v. 9, n. 4, 2021.
 
-SHI, Lei et al. DistCache: Provable Load Balancing for Large-Scale Storage Systems with Distributed Caching. In: **USENIX SYMPOSIUM ON NETWORKED SYSTEMS DESIGN AND IMPLEMENTATION (NSDI)**, 17., 2020, Santa Clara. Proceedings. Berkeley: USENIX Association, 2020.
+SHI, Lei et al. DistCache: Provable Load Balancing for Large-Scale Storage Systems with Distributed Caching. In: USENIX SYMPOSIUM ON NETWORKED SYSTEMS DESIGN AND IMPLEMENTATION (NSDI), 17., 2020, Santa Clara. **Proceedings.** Berkeley: USENIX Association, 2020.
 
 SIGELMAN, Benjamin H. et al. Dapper, a Large-Scale Distributed Systems Tracing Infrastructure. **Technical Report**. Google Research, 2010.
 
 TANENBAUM, Andrew S.; VAN STEEN, Maarten. **Distributed Systems: Principles and Paradigms**. 2nd ed. Upper Saddle River: Pearson Prentice Hall, 2017.
 
-FERREIRA, M. et al. Evolution of Electronic Toll Collection Systems: Architecture, Performance, and Interoperability Challenges. **Journal of Intelligent Transportation Systems**, v. 23, n. 5, 2019.
+*Technical Documentation*
 
-NGINX, Inc. **NGINX Documentation: Load Balancing**. Available at: https://nginx.org/en/docs/http/load_balancing.html. Accessed: 2026.
+DOCKER, Inc. **Docker Compose Documentation**. Available at: https://docs.docker.com/compose/. Accessed: Apr. 7, 2026.
 
-REDIS LTD. **Redis Documentation**. Available at: https://redis.io/documentation. Accessed: 2026.
+GRAFANA LABS. **Grafana Documentation**. Available at: https://grafana.com/docs/. Accessed: Apr. 7, 2026.
 
-PROMETHEUS AUTHORS. **Prometheus Monitoring System and Time Series Database**. Available at: https://prometheus.io/docs/introduction/overview/. Accessed: 2026.
+NGINX, Inc. **NGINX Documentation: Load Balancing**. Available at: https://nginx.org/en/docs/http/load_balancing.html. Accessed: Apr. 7, 2026.
 
-GRAFANA LABS. **Grafana Documentation**. Available at: https://grafana.com/docs/. Accessed: 2026.
+OPENTELEMETRY AUTHORS. **OpenTelemetry Documentation**. Available at: https://opentelemetry.io/docs/. Accessed: Apr. 7, 2026.
 
-OPENTELEMETRY AUTHORS. **OpenTelemetry Documentation**. Available at: https://opentelemetry.io/docs/. Accessed: 2026.
+POSTGRESQL GLOBAL DEVELOPMENT GROUP. **PostgreSQL 15 Documentation**. Available at: https://www.postgresql.org/docs/15/. Accessed: Apr. 7, 2026.
+
+PROMETHEUS AUTHORS. **Prometheus Monitoring System and Time Series Database**. Available at: https://prometheus.io/docs/introduction/overview/. Accessed: Apr. 7, 2026.
+
+REDIS LTD. **Redis Documentation**. Available at: https://redis.io/documentation. Accessed: Apr. 7, 2026.
+
+SPRING. **Spring Boot Reference Documentation (v4.0.x)**. Available at: https://docs.spring.io/spring-boot/reference/. Accessed: Apr. 7, 2026.
+
+THE APACHE SOFTWARE FOUNDATION. **Apache Kafka Documentation**. Available at: https://kafka.apache.org/documentation/. Accessed: Apr. 7, 2026.
 
 
 APPENDICES

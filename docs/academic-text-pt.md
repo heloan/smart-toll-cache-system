@@ -662,19 +662,44 @@ Em conclusão, a arquitetura proposta demonstra uma abordagem viável e eficaz p
 
 
 REFERÊNCIAS
-BURNS, Alan; WELLINGS, Andy. Real-Time Systems and Programming Languages: Ada, Real-Time Java and C/Real-Time POSIX. 4. ed. Boston: Addison-Wesley, 2010.
-IDC – INTERNATIONAL DATA CORPORATION. Data Age 2025: The Evolution of Data to Life-Critical – Don’t Focus on Big Data; Focus on the Data That’s Big. Framingham, MA: IDC, 2017. White Paper patrocinado pela Seagate. Disponível em: https://www.seagate.com/files/www-content/our-story/trends/files/Seagate-WP-DataAge2025-March-2017.pdf. Acesso em: 2026.
-KOPETZ, Hermann. Real-Time Systems: Design Principles for Distributed Embedded Applications. 2. ed. Boston: Springer, 2011.
-PISKIN, Mustafa. Improving Web Application Performance Using In-Memory Caching. International Journal of Computer Science and Engineering, v. 9, n. 4, 2021.
-SHI, Lei et al. DistCache: Provable Load Balancing for Large-Scale Storage Systems with Distributed Caching. In: USENIX SYMPOSIUM ON NETWORKED SYSTEMS DESIGN AND IMPLEMENTATION (NSDI), 17., 2020, Santa Clara. Proceedings… Berkeley: USENIX Association, 2020.
-SIGELMAN, Benjamin H. et al. Dapper, a Large-Scale Distributed Systems Tracing Infrastructure. Technical Report. Google Research, 2010.
-TANENBAUM, Andrew S.; VAN STEEN, Maarten. Distributed Systems: Principles and Paradigms. 2. ed. Upper Saddle River: Pearson Prentice Hall, 2017.
-NGINX, Inc. NGINX Documentation: Load Balancing. Disponível em: https://nginx.org/en/docs/http/load_balancing.html. Acesso em: 2026.
-REDIS LTD. Redis Documentation. Disponível em: https://redis.io/documentation. Acesso em: 2026.
-PROMETHEUS AUTHORS. Prometheus Monitoring System and Time Series Database. Disponível em: https://prometheus.io/docs/introduction/overview/. Acesso em: 2026.
-GRAFANA LABS. Grafana Documentation. Disponível em: https://grafana.com/docs/. Acesso em: 2026.
-OPENTELEMETRY AUTHORS. OpenTelemetry Documentation. Disponível em: https://opentelemetry.io/docs/. Acesso em: 2026.
 
+*Livros e Publicações Acadêmicas*
+
+BURNS, Alan; WELLINGS, Andy. **Real-Time Systems and Programming Languages: Ada, Real-Time Java and C/Real-Time POSIX**. 4. ed. Boston: Addison-Wesley, 2010.
+
+FERREIRA, M. et al. Evolution of Electronic Toll Collection Systems: Architecture, Performance, and Interoperability Challenges. **Journal of Intelligent Transportation Systems**, v. 23, n. 5, 2019.
+
+IDC – INTERNATIONAL DATA CORPORATION. **Data Age 2025: The Evolution of Data to Life-Critical – Don't Focus on Big Data; Focus on the Data That's Big**. Framingham, MA: IDC, 2017. White Paper patrocinado pela Seagate. Disponível em: https://www.seagate.com/files/www-content/our-story/trends/files/Seagate-WP-DataAge2025-March-2017.pdf. Acesso em: 7 abr. 2026.
+
+KOPETZ, Hermann. **Real-Time Systems: Design Principles for Distributed Embedded Applications**. 2. ed. Boston: Springer, 2011.
+
+PISKIN, Mustafa. Improving Web Application Performance Using In-Memory Caching. **International Journal of Computer Science and Engineering**, v. 9, n. 4, 2021.
+
+SHI, Lei et al. DistCache: Provable Load Balancing for Large-Scale Storage Systems with Distributed Caching. In: USENIX SYMPOSIUM ON NETWORKED SYSTEMS DESIGN AND IMPLEMENTATION (NSDI), 17., 2020, Santa Clara. **Proceedings…** Berkeley: USENIX Association, 2020.
+
+SIGELMAN, Benjamin H. et al. Dapper, a Large-Scale Distributed Systems Tracing Infrastructure. **Technical Report**. Google Research, 2010.
+
+TANENBAUM, Andrew S.; VAN STEEN, Maarten. **Distributed Systems: Principles and Paradigms**. 2. ed. Upper Saddle River: Pearson Prentice Hall, 2017.
+
+*Documentações Técnicas*
+
+DOCKER, Inc. **Docker Compose Documentation**. Disponível em: https://docs.docker.com/compose/. Acesso em: 7 abr. 2026.
+
+GRAFANA LABS. **Grafana Documentation**. Disponível em: https://grafana.com/docs/. Acesso em: 7 abr. 2026.
+
+NGINX, Inc. **NGINX Documentation: Load Balancing**. Disponível em: https://nginx.org/en/docs/http/load_balancing.html. Acesso em: 7 abr. 2026.
+
+OPENTELEMETRY AUTHORS. **OpenTelemetry Documentation**. Disponível em: https://opentelemetry.io/docs/. Acesso em: 7 abr. 2026.
+
+POSTGRESQL GLOBAL DEVELOPMENT GROUP. **PostgreSQL 15 Documentation**. Disponível em: https://www.postgresql.org/docs/15/. Acesso em: 7 abr. 2026.
+
+PROMETHEUS AUTHORS. **Prometheus Monitoring System and Time Series Database**. Disponível em: https://prometheus.io/docs/introduction/overview/. Acesso em: 7 abr. 2026.
+
+REDIS LTD. **Redis Documentation**. Disponível em: https://redis.io/documentation. Acesso em: 7 abr. 2026.
+
+SPRING. **Spring Boot Reference Documentation (v4.0.x)**. Disponível em: https://docs.spring.io/spring-boot/reference/. Acesso em: 7 abr. 2026.
+
+THE APACHE SOFTWARE FOUNDATION. **Apache Kafka Documentation**. Disponível em: https://kafka.apache.org/documentation/. Acesso em: 7 abr. 2026.
 
 
 APÊNDICES
