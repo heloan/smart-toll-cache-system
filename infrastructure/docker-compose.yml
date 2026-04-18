@@ -15,6 +15,7 @@ services:
       - toll-management-service-1
       - toll-management-service-2
       - toll-management-service-3
+      - toll-frontend
     networks:
       - toll-network
 
@@ -30,12 +31,16 @@ services:
       - SPRING_DATASOURCE_PASSWORD=rodovia_pass
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SERVER_PORT=9080
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+    restart: on-failure
     networks:
       - toll-network
 
@@ -50,12 +55,16 @@ services:
       - SPRING_DATASOURCE_PASSWORD=rodovia_pass
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SERVER_PORT=9080
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+    restart: on-failure
     networks:
       - toll-network
 
@@ -70,12 +79,16 @@ services:
       - SPRING_DATASOURCE_PASSWORD=rodovia_pass
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - SERVER_PORT=9080
     depends_on:
-      - postgres
-      - redis
-      - kafka
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+    restart: on-failure
     networks:
       - toll-network
 
@@ -86,8 +99,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    depends_on:
-      - nginx
     networks:
       - toll-network
 
@@ -97,7 +108,7 @@ services:
       context: ../services/toll-simulator
       dockerfile: Dockerfile
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_TOPIC=transacao-pedagio
     depends_on:
       - kafka
@@ -117,7 +128,7 @@ services:
 
   # --- Relational Database ---
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     environment:
       - POSTGRES_DB=rodovia
       - POSTGRES_USER=rodovia_user
@@ -127,6 +138,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rodovia_user -d rodovia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - toll-network
 
@@ -150,9 +166,10 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     networks:

@@ -1,5 +1,7 @@
 package com.stcs.tollmanagement.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -24,6 +26,11 @@ import lombok.RequiredArgsConstructor;
 public class OperadorController {
 
     private final OperadorService operadorService;
+
+    @GetMapping
+    public ResponseEntity<List<OperadorResponseDTO>> listarTodos() {
+        return ResponseEntity.ok(operadorService.listarTodos());
+    }
 
     @PostMapping
     public ResponseEntity<OperadorResponseDTO> criarOperador(@Valid @RequestBody OperadorRequestDTO request) {

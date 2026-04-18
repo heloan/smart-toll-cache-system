@@ -10,7 +10,7 @@ export const transacaoApi = {
   listar: (params) => api.get('/transacoes', { params }),
   buscarPorId: (id) => api.get(`/transacoes/${id}`),
   criar: (data) => api.post('/transacoes', data),
-  listarOcorrencias: (params) => api.get('/transacoes/ocorrencias', { params }),
+  listarOcorrencias: (params) => api.get('/transacoes/ocorrencias/pendentes', { params }),
 };
 
 export const correcaoApi = {

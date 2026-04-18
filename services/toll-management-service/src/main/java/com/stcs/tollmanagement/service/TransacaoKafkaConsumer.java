@@ -8,10 +8,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.stcs.tollmanagement.dto.TransacaoPedagioKafkaDTO;
+import com.stcs.tollmanagement.entity.OcorrenciaTransacao;
 import com.stcs.tollmanagement.entity.PistaPedagio;
 import com.stcs.tollmanagement.entity.PracaPedagio;
 import com.stcs.tollmanagement.entity.TarifaPedagio;
 import com.stcs.tollmanagement.entity.TransacaoPedagio;
+import com.stcs.tollmanagement.enums.StatusTransacaoEnum;
+import com.stcs.tollmanagement.enums.TipoOcorrenciaEnum;
+import com.stcs.tollmanagement.repository.OcorrenciaTransacaoRepository;
 import com.stcs.tollmanagement.repository.PistaPedagioRepository;
 import com.stcs.tollmanagement.repository.PracaPedagioRepository;
 import com.stcs.tollmanagement.repository.TarifaPedagioRepository;
@@ -29,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TransacaoKafkaConsumer {
 
     private final TransacaoPedagioRepository transacaoPedagioRepository;
+    private final OcorrenciaTransacaoRepository ocorrenciaTransacaoRepository;
     private final PracaPedagioRepository pracaPedagioRepository;
     private final PistaPedagioRepository pistaPedagioRepository;
     private final TarifaPedagioRepository tarifaPedagioRepository;
@@ -86,6 +91,20 @@ public class TransacaoKafkaConsumer {
             // Salvar no banco de dados
             TransacaoPedagio transacaoSalva = transacaoPedagioRepository.save(transacao);
             
+            // Se a transação tem status OCORRENCIA, criar registro de ocorrência
+            if (transacaoSalva.getStatusTransacao() == StatusTransacaoEnum.OCORRENCIA) {
+                TipoOcorrenciaEnum tipoOcorrencia = detectarTipoOcorrencia(transacaoSalva, tarifa);
+                OcorrenciaTransacao ocorrencia = OcorrenciaTransacao.builder()
+                        .transacao(transacaoSalva)
+                        .tipoOcorrencia(tipoOcorrencia)
+                        .observacao("Ocorrência detectada automaticamente pelo consumidor Kafka")
+                        .detectadaAutomaticamente(true)
+                        .build();
+                ocorrenciaTransacaoRepository.save(ocorrencia);
+                log.info("Ocorrência criada - Tipo: {}, Transação ID: {}", 
+                        tipoOcorrencia, transacaoSalva.getId());
+            }
+            
             log.info("Transação processada e salva com sucesso - ID: {}, Placa: {}, Praça: {}", 
                     transacaoSalva.getId(), transacaoSalva.getPlaca(), praca.getNome());
             
@@ -96,5 +115,35 @@ public class TransacaoKafkaConsumer {
             // Em produção, você pode implementar uma estratégia de retry ou DLQ (Dead Letter Queue)
             throw e; // Relança a exceção para que o Kafka possa fazer retry
         }
+    }
+
+    /**
+     * Detecta o tipo de ocorrência com base nos dados da transação
+     */
+    private TipoOcorrenciaEnum detectarTipoOcorrencia(TransacaoPedagio transacao, TarifaPedagio tarifa) {
+        // Placa com formato inválido (ex: INV845)
+        String placa = transacao.getPlaca();
+        if (placa != null && (placa.length() < 7 || placa.startsWith("INV"))) {
+            return TipoOcorrenciaEnum.FALHA_LEITURA;
+        }
+
+        // Valor divergente da tarifa vigente
+        if (tarifa != null && transacao.getValorOriginal() != null 
+                && transacao.getValorOriginal().compareTo(tarifa.getValor()) != 0) {
+            return TipoOcorrenciaEnum.SEM_SALDO;
+        }
+
+        // Tag duplicada conhecida
+        if ("TAG999999".equals(transacao.getTagId())) {
+            return TipoOcorrenciaEnum.TAG_BLOQUEADA;
+        }
+
+        // Horário inconsistente (futuro)
+        if (transacao.getDataHoraPassagem() != null 
+                && transacao.getDataHoraPassagem().isAfter(java.time.LocalDateTime.now().plusMinutes(5))) {
+            return TipoOcorrenciaEnum.EVASAO;
+        }
+
+        return TipoOcorrenciaEnum.FALHA_LEITURA;
     }
 }

@@ -1,5 +1,8 @@
 package com.stcs.tollmanagement.service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +44,13 @@ public class OperadorService {
         operador = operadorRepository.save(operador);
         
         return OperadorResponseDTO.fromEntity(operador);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OperadorResponseDTO> listarTodos() {
+        return operadorRepository.findAll().stream()
+                .map(OperadorResponseDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)

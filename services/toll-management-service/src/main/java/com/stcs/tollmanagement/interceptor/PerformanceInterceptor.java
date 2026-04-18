@@ -11,10 +11,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 
-import com.sun.management.OperatingSystemMXBean;
 import com.stcs.tollmanagement.entity.RegistroPerformance;
 import com.stcs.tollmanagement.enums.OrigemDadosEnum;
 import com.stcs.tollmanagement.service.RegistroPerformanceService;
+import com.sun.management.OperatingSystemMXBean;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

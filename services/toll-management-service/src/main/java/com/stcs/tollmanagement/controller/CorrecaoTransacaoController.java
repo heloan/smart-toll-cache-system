@@ -5,9 +5,12 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.stcs.tollmanagement.dto.CorrecaoTransacaoRequestDTO;
 import com.stcs.tollmanagement.dto.CorrecaoTransacaoResponseDTO;
 import com.stcs.tollmanagement.service.CorrecaoTransacaoService;
 
@@ -51,5 +54,21 @@ public class CorrecaoTransacaoController {
         List<CorrecaoTransacaoResponseDTO> correcoes = 
             correcaoTransacaoService.listarPorOperador(operadorId);
         return ResponseEntity.ok(correcoes);
+    }
+
+    /**
+     * Cria uma correção para uma transação específica
+     */
+    @PostMapping("/transacao/{transacaoId}")
+    public ResponseEntity<CorrecaoTransacaoResponseDTO> criarCorrecao(
+            @PathVariable Long transacaoId,
+            @RequestBody CorrecaoTransacaoRequestDTO request) {
+        try {
+            CorrecaoTransacaoResponseDTO correcao = 
+                correcaoTransacaoService.criarCorrecao(transacaoId, request);
+            return ResponseEntity.ok(correcao);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

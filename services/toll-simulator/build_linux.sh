@@ -1,17 +1,26 @@
 #!/bin/bash
 # Script para gerar executável no Linux
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "=== Gerando Executável do Simulador de Pedágio ==="
 echo ""
 
-# Ativar ambiente virtual se existir
-if [ -d "venv" ]; then
-    echo "Ativando ambiente virtual..."
-    source venv/bin/activate
+# Criar ambiente virtual se não existir
+if [ ! -d "venv" ]; then
+    echo "Criando ambiente virtual..."
+    python3 -m venv venv
 fi
 
-# Instalar PyInstaller se necessário
-echo "Verificando PyInstaller..."
+# Ativar ambiente virtual
+echo "Ativando ambiente virtual..."
+source venv/bin/activate
+
+# Instalar dependências + PyInstaller
+echo "Instalando dependências..."
+pip install --upgrade pip
+pip install -r requirements.txt
 pip install pyinstaller
 
 # Limpar builds anteriores
